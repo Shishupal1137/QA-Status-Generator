@@ -274,6 +274,27 @@ ${signoff}`;
   document.getElementById('outbox').textContent = mail;
 }
 
+// ---------- Open in Mail ----------
+
+function openInMail() {
+  const dateVal = document.getElementById('date').value;
+  let dateStr = 'Report';
+  if (dateVal) {
+    dateStr = new Date(dateVal).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
+  const subject   = `Orion India QA Team Task Report - ${dateStr}`;
+  const body      = document.getElementById('outbox').textContent;
+  const recipient = document.getElementById('recipient').value || '';
+
+  // Opens Outlook Web (outlook.cloud.microsoft) compose window directly
+  const base = 'https://outlook.cloud.microsoft/mail/deeplink/compose';
+  const url  = `${base}?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(url, '_blank');
+}
+
 // ---------- Copy mail ----------
 
 function copyMail() {

@@ -596,6 +596,33 @@ body {
   color: #085041;
 }
 
+/* ---------- Open in Mail button ---------- */
+.mailbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #c5d8f5;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  cursor: pointer;
+  background: #EBF3FE;
+  color: #185FA5;
+  transition: all 0.15s;
+  font-family: var(--font);
+  font-weight: 600;
+}
+
+.mailbtn:hover {
+  background: #d6e8fc;
+  border-color: #185FA5;
+  color: #0d4a87;
+}
+
+.mailbtn:active {
+  transform: scale(0.97);
+}
+
 .ctag {
   font-size: 11px;
   color: var(--teal);
