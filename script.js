@@ -254,9 +254,9 @@ function build() {
 
   const BULLET = '\u2022';
 
-  // Task block — prefixed with member name(s) for clarity
+  // Task block — plain bullets, no name prefix (names shown once in header)
   const taskBlock = tasks.length
-    ? tasks.map(t => `${BULLET} ${t.members.join(', ')} \u2013 ${t.text}`).join('\n')
+    ? tasks.map(t => `${BULLET} ${t.text}`).join('\n')
     : `${BULLET} [no tasks added yet]`;
 
   const mail =
