@@ -1,43 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Status Generator</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<div class="container">
-  <h1>🐞 QA Status Generator</h1>
+  <div class="app">
 
-  <!-- Date -->
-  <label>Select Date:</label>
-  <input type="date" id="date" oninput="updateReport()">
+    <!-- HERO HEADER -->
+    <div class="hero">
+      <div class="hero-left">
+        <div class="hero-logo">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <circle cx="9" cy="9" r="5.5" stroke="white" stroke-width="1.6"/>
+            <path d="M14 14l4.5 4.5" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M7 9h4M9 7v4" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="hero-title">QA Status Generator</div>
+          <div class="hero-sub">Orion India QA Team &middot; Daily Report</div>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-pill">
+          <span class="stat-n" id="s-members">0</span>
+          <span class="stat-l">Members</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-n" id="s-tasks">0</span>
+          <span class="stat-l">Tasks</span>
+        </div>
+      </div>
+    </div>
 
-  <!-- Members -->
-  <h3>Select Team Members:</h3>
-  <div class="members">
-    <label><input type="checkbox" name="member" value="Ajay" onchange="updateReport()"> Ajay</label>
-    <label><input type="checkbox" name="member" value="Keshav" onchange="updateReport()"> Keshav</label>
-    <label><input type="checkbox" name="member" value="Gourav" onchange="updateReport()"> Gourav</label>
-    <label><input type="checkbox" name="member" value="Shubhi" onchange="updateReport()"> Shubhi</label>
-    <label><input type="checkbox" name="member" value="Subhani" onchange="updateReport()"> Subhani</label>
-    <label><input type="checkbox" name="member" value="Mohit" onchange="updateReport()"> Mohit</label>
-    <label><input type="checkbox" name="member" value="Yadav" onchange="updateReport()"> Yadav</label>
-  </div>
+    <!-- REPORT DETAILS -->
+    <div class="card">
+      <div class="slabel"><div class="sdot"></div>Report details</div>
+      <div class="frow">
+        <label for="date">Date</label>
+        <input type="date" id="date" oninput="build()" />
+      </div>
+      <div class="frow">
+        <label for="recipient">Recipient</label>
+        <input type="text" id="recipient" value="Jenny" oninput="build()" />
+      </div>
+      <div class="frow">
+        <label for="signoff">Sign off</label>
+        <input type="text" id="signoff" value="Mohit" oninput="build()" />
+      </div>
+    </div>
 
-  <!-- Tasks -->
-  <h3>Enter Tasks:</h3>
-  <textarea id="tasks" placeholder="Paste all tasks here..." oninput="updateReport()"></textarea>
+    <!-- TEAM MEMBERS -->
+    <div class="card">
+      <div class="slabel">
+        <div class="sdot"></div>Team members
+        <span id="mbadge" class="badge" style="display:none">0 selected</span>
+      </div>
+      <div class="mems" id="mgrid"></div>
+    </div>
 
-  <!-- Output -->
-  <h3>Generated Mail:</h3>
-  <pre id="output"></pre>
+    <!-- ADD TASK -->
+    <div class="card">
+      <div class="slabel"><div class="sdot"></div>Add task</div>
+      <div class="assign-bar" id="abar">
+        <span class="assign-label">Assign to:</span>
+        <div class="achips" id="achips">
+          <span class="placeholder-text">Select members above first</span>
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="ta-wrap">
+          <textarea id="tinput" placeholder="Type the task here… (Ctrl+Enter to add)" rows="3"></textarea>
+          <div class="hint" id="hint"></div>
+        </div>
+        <button class="addbtn" onclick="addTask()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Add task
+        </button>
+      </div>
+    </div>
 
-  <!-- Copy -->
-  <button onclick="copyText()">Copy Mail</button>
+    <!-- TASKS ADDED -->
+    <div class="card">
+      <div class="slabel">
+        <div class="sdot"></div>Tasks added
+        <span id="tbadge" class="badge" style="display:none">0</span>
+      </div>
+      <div id="tlist">
+        <div class="empty">No tasks added yet.</div>
+      </div>
+    </div>
 
-</div>
+    <!-- GENERATED MAIL -->
+    <div class="card">
+      <div class="out-hd">
+        <div class="slabel" style="margin-bottom:0">
+          <div class="sdot"></div>Generated mail
+        </div>
+        <div class="out-actions">
+          <span class="ctag" id="ctag">Copied!</span>
+          <button class="cpybtn" onclick="copyMail()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.1"/>
+              <path d="M1 8V1.5A.5.5 0 011.5 1H8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+            Copy mail
+          </button>
+        </div>
+      </div>
+      <div class="outbox" id="outbox">Fill in the details above to generate your mail.</div>
+    </div>
 
-<script src="script.js"></script>
+  </div><!-- end .app -->
+
+  <script src="script.js"></script>
 </body>
 </html>
