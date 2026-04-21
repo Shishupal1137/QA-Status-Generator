@@ -292,6 +292,35 @@ function copyMail() {
   });
 }
 
+// ---------- Clear report ----------
+
+function showClearModal() {
+  document.getElementById('clearModal').classList.add('open');
+}
+
+function hideClearModal() {
+  document.getElementById('clearModal').classList.remove('open');
+}
+
+function confirmClear() {
+  // Reset all state
+  selectedMembers.clear();
+  assignees.clear();
+  tasks = [];
+
+  // Reset form fields
+  document.getElementById('date').value      = '';
+  document.getElementById('recipient').value = 'Jenny';
+  document.getElementById('signoff').value   = 'Mohit';
+  document.getElementById('tinput').value    = '';
+  document.getElementById('hint').textContent = '';
+
+  hideClearModal();
+  renderMembers();
+  renderTasks();
+  build();
+}
+
 // ---------- Init ----------
 renderMembers();
 renderTasks();
