@@ -17,8 +17,8 @@ const COLORS = [
 ];
 
 let selectedMembers = new Set(); // members ticked in the top grid
-let assignee        = null;      // member chosen in "Assign to" bar
-let tasks           = [];        // { member: string, text: string }[]
+let assignees       = new Set(); // multi-select: members chosen in "Assign to" bar
+let tasks           = [];        // { members: string[], text: string }[]
 
 // ---------- Helpers ----------
 
@@ -67,8 +67,8 @@ function renderMembers() {
 function toggleMember(name) {
   if (selectedMembers.has(name)) {
     selectedMembers.delete(name);
-    // Deselect assignee if they were removed
-    if (assignee === name) assignee = null;
+    // Also remove from assignees if they were deselected
+    assignees.delete(name);
   } else {
     selectedMembers.add(name);
   }
@@ -76,33 +76,37 @@ function toggleMember(name) {
   build();
 }
 
-// ---------- Render: Assign-to chips ----------
+// ---------- Render: Assign-to chips (multi-select) ----------
 
 function renderAssignChips() {
   const wrap = document.getElementById('achips');
 
   if (!selectedMembers.size) {
     wrap.innerHTML = '<span class="placeholder-text">Select members above first</span>';
-    assignee = null;
+    assignees.clear();
     return;
   }
 
   wrap.innerHTML = [...selectedMembers].map(name => {
     const i   = MEMBERS.indexOf(name);
     const col = COLORS[i] || COLORS[0];
-    const sel = assignee === name;
+    const sel = assignees.has(name);
     return `
       <div
         class="achip ${sel ? 'sel' : ''}"
         style="${sel ? `background:${col};border-color:${col}` : ''}"
-        onclick="setAssignee('${name}')">
-        ${name}
+        onclick="toggleAssignee('${name}')">
+        ${sel ? `<svg width="8" height="8" viewBox="0 0 8 8" fill="none" style="display:inline;margin-right:3px;vertical-align:middle"><path d="M1.5 4l2 2 3-3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ''}${name}
       </div>`;
   }).join('');
 }
 
-function setAssignee(name) {
-  assignee = name;
+function toggleAssignee(name) {
+  if (assignees.has(name)) {
+    assignees.delete(name);
+  } else {
+    assignees.add(name);
+  }
   document.getElementById('hint').textContent = '';
   renderAssignChips();
 }
@@ -120,8 +124,8 @@ function addTask() {
     shake('mgrid');
     return;
   }
-  if (!assignee) {
-    hint.textContent = 'Please assign the task to a member (click a name above).';
+  if (!assignees.size) {
+    hint.textContent = 'Please assign the task to at least one member (click names above).';
     shake('abar');
     return;
   }
@@ -132,7 +136,7 @@ function addTask() {
   }
 
   hint.textContent = '';
-  tasks.push({ member: assignee, text: val });
+  tasks.push({ members: [...assignees], text: val });
   ta.value = '';
   ta.focus();
 
@@ -167,6 +171,8 @@ function renderTasks() {
   if (!tasks.length) {
     list.innerHTML         = '<div class="empty">No tasks added yet.</div>';
     badge.style.display    = 'none';
+    // Still show no-tasks indicator if members are selected
+    if (selectedMembers.size) appendNoTasksRow(list, [...selectedMembers]);
     return;
   }
 
@@ -174,15 +180,20 @@ function renderTasks() {
   badge.textContent    = tasks.length + ' task' + (tasks.length > 1 ? 's' : '');
 
   list.innerHTML = tasks.map((t, i) => {
-    const idx   = MEMBERS.indexOf(t.member);
-    const color = COLORS[idx] || COLORS[0];
+    // Build owner row — multiple avatars + names
+    const ownerHtml = t.members.map((name, pos) => {
+      const idx   = MEMBERS.indexOf(name);
+      const color = COLORS[idx] || COLORS[0];
+      return `
+        ${pos > 0 ? '<span class="tsep">,</span>' : ''}
+        <div class="tav" style="background:${color}">${initials(name)}</div>
+        <span class="towname" style="color:${color}">${name}</span>`;
+    }).join('');
+
     return `
       <div class="tcard">
         <div class="tbody">
-          <div class="towner">
-            <div class="tav" style="background:${color}">${initials(t.member)}</div>
-            <span class="towname" style="color:${color}">${t.member}</span>
-          </div>
+          <div class="towner">${ownerHtml}</div>
           <div class="ttext-row">
             <div class="tbullet"></div>
             <div class="ttext">${esc(t.text)}</div>
@@ -191,6 +202,36 @@ function renderTasks() {
         <button class="tdel" onclick="removeTask(${i})">Remove</button>
       </div>`;
   }).join('');
+
+  // "No tasks yet" members row
+  if (selectedMembers.size) {
+    const membersWithTasks = new Set(tasks.flatMap(t => t.members));
+    const noTaskMembers    = [...selectedMembers].filter(m => !membersWithTasks.has(m));
+    appendNoTasksRow(list, noTaskMembers);
+  }
+}
+
+function appendNoTasksRow(container, noTaskMembers) {
+  if (!noTaskMembers.length) return;
+
+  const chips = noTaskMembers.map(name => {
+    const i   = MEMBERS.indexOf(name);
+    const col = COLORS[i] || COLORS[0];
+    return `<span class="notask-chip" style="border-color:${col}20;color:${col};background:${col}12">
+      <span class="notask-av" style="background:${col}">${initials(name)}</span>${name}
+    </span>`;
+  }).join('');
+
+  const row = document.createElement('div');
+  row.className = 'notask-row';
+  row.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;opacity:.5">
+      <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M6 4v2.5M6 8h.01" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+    <span class="notask-label">No tasks yet:</span>
+    ${chips}`;
+  container.appendChild(row);
 }
 
 // ---------- Build generated mail ----------
@@ -211,12 +252,11 @@ function build() {
   // Member name list (comma-separated, all selected members)
   const nameList = [...selectedMembers].join(', ') || '[no members selected]';
 
-  // Bullet character (•)
   const BULLET = '\u2022';
 
-  // Task block — one bullet per task, no numbers
+  // Task block — prefixed with member name(s) for clarity
   const taskBlock = tasks.length
-    ? tasks.map(t => `${BULLET} ${t.text}`).join('\n')
+    ? tasks.map(t => `${BULLET} ${t.members.join(', ')} \u2013 ${t.text}`).join('\n')
     : `${BULLET} [no tasks added yet]`;
 
   const mail =
@@ -243,7 +283,6 @@ function copyMail() {
     tag.classList.add('show');
     setTimeout(() => tag.classList.remove('show'), 2000);
   }).catch(() => {
-    // Fallback for older browsers
     const ta = document.createElement('textarea');
     ta.value = text;
     document.body.appendChild(ta);
