@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QA Status Generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+  <h1>🐞 QA Status Generator</h1>
+
+  <!-- Date -->
+  <label>Select Date:</label>
+  <input type="date" id="date" oninput="updateReport()">
+
+  <!-- Members -->
+  <h3>Select Team Members:</h3>
+  <div class="members">
+    <label><input type="checkbox" name="member" value="Ajay" onchange="updateReport()"> Ajay</label>
+    <label><input type="checkbox" name="member" value="Keshav" onchange="updateReport()"> Keshav</label>
+    <label><input type="checkbox" name="member" value="Gourav" onchange="updateReport()"> Gourav</label>
+    <label><input type="checkbox" name="member" value="Shubhi" onchange="updateReport()"> Shubhi</label>
+    <label><input type="checkbox" name="member" value="Subhani" onchange="updateReport()"> Subhani</label>
+    <label><input type="checkbox" name="member" value="Mohit" onchange="updateReport()"> Mohit</label>
+    <label><input type="checkbox" name="member" value="Yadav" onchange="updateReport()"> Yadav</label>
+  </div>
+
+  <!-- Tasks -->
+  <h3>Enter Tasks:</h3>
+  <textarea id="tasks" placeholder="Paste all tasks here..." oninput="updateReport()"></textarea>
+
+  <!-- Output -->
+  <h3>Generated Mail:</h3>
+  <pre id="output"></pre>
+
+  <!-- Copy -->
+  <button onclick="copyText()">Copy Mail</button>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
