@@ -31,6 +31,59 @@
     </div>
   </div>
 
+  <!-- SCHEDULE MODAL -->
+  <div class="modal-backdrop" id="scheduleModal" onclick="hideScheduleModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-icon" style="background:#EEF2FF;border-color:#c7d2fe;">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <circle cx="11" cy="11" r="8.5" stroke="#534AB7" stroke-width="1.6"/>
+          <path d="M11 7v4.5l3 2" stroke="#534AB7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="modal-title">Schedule mail</div>
+      <div class="modal-body">Pick a date &amp; time — the Outlook compose window will open automatically with <strong>To</strong>, <strong>CC</strong>, subject &amp; body pre-filled, ready to send.</div>
+      <div class="sch-field">
+        <label class="sch-label">Send at</label>
+        <input type="datetime-local" id="scheduleTime" class="sch-input" />
+      </div>
+      <div class="sch-preview" id="schPreview"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="hideScheduleModal()">Cancel</button>
+        <button class="modal-confirm sch-confirm-btn" onclick="confirmSchedule()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="4.5" stroke="white" stroke-width="1.2"/>
+            <path d="M6 3.5V6.5l2 1.2" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEND NOW MODAL (fires at scheduled time) -->
+  <div class="modal-backdrop sendnow-backdrop" id="sendNowModal">
+    <div class="modal sendnow-modal" onclick="event.stopPropagation()">
+      <div class="sendnow-pulse">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M4 14L12 22L24 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="modal-title" style="font-size:18px;margin-top:4px">⏰ Time to send!</div>
+      <div class="modal-body">Your scheduled time has arrived. Click the button below — Outlook will open with <strong>To</strong>, <strong>CC</strong>, subject &amp; body already filled. Just press <strong>Send</strong>.</div>
+      <div class="sendnow-meta" id="sendNowMeta"></div>
+      <div class="modal-actions" style="justify-content:stretch;flex-direction:column;gap:8px">
+        <button class="sendnow-btn" onclick="openAndSend()">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <rect x="1" y="3" width="13" height="9.5" rx="1.8" stroke="white" stroke-width="1.4"/>
+            <path d="M1 5l6.5 5L14 5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Open Outlook &amp; Send
+        </button>
+        <button class="modal-cancel" style="width:100%;justify-content:center;text-align:center" onclick="hideSendNowModal()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
   <div class="app">
 
     <!-- HERO HEADER -->
@@ -49,6 +102,15 @@
         </div>
       </div>
       <div class="hero-right">
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="3.2" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M11.5 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:none">
+            <path d="M13.5 10A6 6 0 016 2.5a6 6 0 100 11A6 6 0 0013.5 10z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </button>
         <div class="hero-stats">
           <div class="stat-pill">
             <span class="stat-n" id="s-members">0</span>
@@ -68,6 +130,17 @@
       </div>
     </div>
 
+    <!-- SCHEDULED STATUS BANNER -->
+    <div class="sch-banner" id="schBanner" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0">
+        <circle cx="7" cy="7" r="5.5" stroke="#534AB7" stroke-width="1.3"/>
+        <path d="M7 4.5V7.5l2 1.2" stroke="#534AB7" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="schBannerText" class="sch-banner-text"></span>
+      <span class="sch-countdown" id="schCountdown"></span>
+      <button class="sch-cancel-btn" onclick="cancelSchedule()">Cancel</button>
+    </div>
+
     <!-- REPORT DETAILS -->
     <div class="card">
       <div class="slabel"><div class="sdot"></div>Report details</div>
@@ -82,6 +155,15 @@
       <div class="frow">
         <label for="signoff">Sign off</label>
         <input type="text" id="signoff" value="Mohit" oninput="build()" />
+      </div>
+      <div class="frow-divider"></div>
+      <div class="frow">
+        <label for="toEmail">To (email)</label>
+        <input type="email" id="toEmail" value="shishupalsingh1137@gmail.com" placeholder="to@email.com" />
+      </div>
+      <div class="frow">
+        <label for="ccEmail">CC (email)</label>
+        <input type="email" id="ccEmail" value="shishupalsingh9980@gmail.com" placeholder="cc@email.com" />
       </div>
     </div>
 
@@ -150,12 +232,35 @@
             </svg>
             Open in Mail
           </button>
+          <button class="schbtn" onclick="showScheduleModal()">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M6.5 4V7l2 1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Schedule mail
+          </button>
         </div>
       </div>
       <div class="outbox" id="outbox">Fill in the details above to generate your mail.</div>
     </div>
 
   </div><!-- end .app -->
+
+  <!-- CC CLIPBOARD TOAST -->
+  <div class="cc-toast" id="ccToast">
+    <div class="cc-toast-icon">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="4.5" y="4.5" width="8" height="8" rx="1.5" stroke="white" stroke-width="1.2"/>
+        <path d="M1.5 9V2a.5.5 0 01.5-.5H9" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="cc-toast-body">
+      <strong>CC copied to clipboard</strong>
+      <span id="ccToastEmail"></span>
+      <span class="cc-toast-hint">Click the <strong>Cc</strong> field in Outlook and press <kbd>Ctrl+V</kbd> to paste</span>
+    </div>
+    <button class="cc-toast-close" onclick="document.getElementById('ccToast').classList.remove('show')">✕</button>
+  </div>
 
   <script src="script.js"></script>
 </body>

@@ -623,6 +623,288 @@ body {
   transform: scale(0.97);
 }
 
+/* ---------- Schedule mail button ---------- */
+.schbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  cursor: pointer;
+  background: #EEF2FF;
+  color: #534AB7;
+  transition: all 0.15s;
+  font-family: var(--font);
+  font-weight: 600;
+}
+
+.schbtn:hover {
+  background: #e0e7ff;
+  border-color: #534AB7;
+  color: #3730a3;
+}
+
+.schbtn:active {
+  transform: scale(0.97);
+}
+
+/* ---------- Schedule confirm button ---------- */
+.sch-confirm-btn {
+  background: #534AB7 !important;
+  box-shadow: 0 1px 4px rgba(83,74,183,.3) !important;
+}
+
+.sch-confirm-btn:hover {
+  background: #4338ca !important;
+}
+
+/* ---------- Schedule modal fields ---------- */
+.sch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.sch-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sch-input {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  background: var(--surface2);
+  color: var(--text-primary);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sch-input:focus {
+  border-color: #534AB7;
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(83,74,183,0.12);
+}
+
+.sch-preview {
+  font-size: 12px;
+  color: #534AB7;
+  font-weight: 600;
+  min-height: 18px;
+  margin-bottom: 4px;
+}
+
+/* ---------- Scheduled status banner ---------- */
+.sch-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #EEF2FF;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+}
+
+.sch-banner-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3730a3;
+  flex-shrink: 0;
+}
+
+.sch-countdown {
+  font-size: 12px;
+  color: #534AB7;
+  font-family: var(--font-mono);
+  flex: 1;
+}
+
+.sch-cancel-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid #a5b4fc;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  background: white;
+  color: #534AB7;
+  transition: all 0.15s;
+  font-family: var(--font);
+  flex-shrink: 0;
+}
+
+.sch-cancel-btn:hover {
+  background: #e0e7ff;
+  border-color: #534AB7;
+}
+
+/* ---------- CC clipboard toast ---------- */
+.cc-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #1e293b;
+  color: white;
+  border-radius: 12px;
+  padding: 13px 16px;
+  max-width: 420px;
+  width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  z-index: 2000;
+}
+
+.cc-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: all;
+}
+
+.cc-toast-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--teal);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cc-toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cc-toast-body strong {
+  font-size: 13px;
+  color: white;
+}
+
+.cc-toast-body span {
+  font-size: 12px;
+  color: #94a3b8;
+  word-break: break-all;
+}
+
+.cc-toast-hint {
+  font-size: 12px;
+  color: #cbd5e1 !important;
+  margin-top: 2px;
+}
+
+.cc-toast-hint kbd {
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.cc-toast-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+  margin-top: 2px;
+}
+
+.cc-toast-close:hover { color: white; }
+.sendnow-backdrop {
+  z-index: 1000;
+}
+
+.sendnow-modal {
+  border-top: 4px solid var(--teal) !important;
+}
+
+.sendnow-pulse {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  animation: pulse-ring 1.4s ease-out infinite;
+  box-shadow: 0 0 0 0 rgba(29,158,117,0.5);
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(29,158,117,0.5); }
+  70%  { box-shadow: 0 0 0 16px rgba(29,158,117,0); }
+  100% { box-shadow: 0 0 0 0 rgba(29,158,117,0); }
+}
+
+.sendnow-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+.sendnow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--teal);
+  color: white;
+  font-family: var(--font);
+  box-shadow: 0 2px 8px rgba(29,158,117,0.35);
+  transition: background 0.15s;
+}
+
+.sendnow-btn:hover { background: var(--teal-dark); }
+.sendnow-btn:active { transform: scale(0.97); }
+
+/* ---------- Report details divider ---------- */
+.frow-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
 .ctag {
   font-size: 11px;
   color: var(--teal);
@@ -808,4 +1090,69 @@ body {
 
 .modal-confirm:active {
   transform: scale(0.97);
+}
+
+/* =============================================
+   DARK MODE VARIABLES
+   ============================================= */
+[data-theme="dark"] {
+  --bg:             #0f1117;
+  --surface:        #1a1d27;
+  --surface2:       #22263a;
+  --border:         #2d3147;
+  --border2:        #3d4163;
+  --text-primary:   #e8eaf0;
+  --text-secondary: #8b91b0;
+  --text-tertiary:  #555d80;
+  --teal-light:     #0d2920;
+  --red-light:      #2a1212;
+  --red-border:     #6b2525;
+  --red-text:       #f87171;
+}
+
+[data-theme="dark"] .hero-logo    { box-shadow: 0 2px 8px rgba(29,158,117,.1); }
+[data-theme="dark"] .outbox       { background: #181b26; color: var(--text-primary); }
+[data-theme="dark"] .notask-row   { background: #181b26; border-color: var(--border); }
+[data-theme="dark"] .modal        { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .modal-title  { color: var(--text-primary); }
+[data-theme="dark"] .modal-body   { color: var(--text-secondary); }
+[data-theme="dark"] .modal-cancel { background: var(--surface2); border-color: var(--border2); color: var(--text-secondary); }
+[data-theme="dark"] .sch-input    { background: var(--surface2); color: var(--text-primary); border-color: var(--border); }
+[data-theme="dark"] .sch-preview  { color: #818cf8; }
+[data-theme="dark"] .sch-banner   { background: #1a1a36; border-color: #3d3d70; }
+[data-theme="dark"] .sch-banner-text { color: #a5b4fc; }
+[data-theme="dark"] .sch-countdown   { color: #818cf8; }
+[data-theme="dark"] .sch-cancel-btn  { background: #1a1a36; border-color: #4a4a90; color: #a5b4fc; }
+[data-theme="dark"] .sch-cancel-btn:hover { background: #2d2d60; }
+[data-theme="dark"] .achip        { background: var(--surface2); border-color: var(--border2); color: var(--text-secondary); }
+[data-theme="dark"] .sendnow-modal { background: var(--surface); }
+[data-theme="dark"] .sendnow-meta  { background: var(--surface2); border-color: var(--border); color: var(--text-secondary); }
+[data-theme="dark"] .cc-toast     { background: #0f172a; }
+[data-theme="dark"] .tcard        { background: var(--surface2); }
+[data-theme="dark"] .assign-bar   { background: var(--surface2); }
+[data-theme="dark"] .mchip        { background: var(--surface2); }
+[data-theme="dark"] .stat-pill    { background: var(--surface2); }
+
+/* =============================================
+   THEME TOGGLE BUTTON
+   ============================================= */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--teal-light);
+  border-color: var(--teal-mid);
+  color: var(--teal);
 }
