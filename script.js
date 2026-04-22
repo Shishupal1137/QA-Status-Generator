@@ -491,6 +491,29 @@ function cancelSchedule(silent) {
 }
 
 // ── "Time to send!" modal — shown at scheduled time ──
+function playAlertBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const beeps = [
+      { freq: 880, start: 0,    dur: 0.18 },
+      { freq: 880, start: 0.22, dur: 0.18 },
+      { freq: 1100,start: 0.44, dur: 0.35 },
+    ];
+    beeps.forEach(({ freq, start, dur }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type      = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + start);
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + start + 0.02);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur + 0.05);
+    });
+  } catch(e) { /* Audio not supported — silent fallback */ }
+}
 function showSendNowModal() {
   // Fill meta details
   const to      = document.getElementById('toEmail').value.trim();
@@ -502,6 +525,13 @@ function showSendNowModal() {
     `<strong>To:</strong> ${to}<br><strong>CC:</strong> ${cc}<br><strong>Subject:</strong> Orion India QA Team Task Report - ${dateStr}`;
 
   document.getElementById('sendNowModal').classList.add('open');
+
+  // 🔔 Play triple-beep alert
+  playAlertBeep();
+  // Repeat beep every 4 seconds until user dismisses
+  const beepInt = setInterval(playAlertBeep, 4000);
+  document.getElementById('sendNowModal')._beepInt = beepInt;
+
   try { window.focus(); } catch(e) {}
   // Flash tab title so user notices
   const orig = document.title;
@@ -517,6 +547,7 @@ function hideSendNowModal() {
   const m = document.getElementById('sendNowModal');
   m.classList.remove('open');
   clearInterval(m._fi);
+  clearInterval(m._beepInt);
   document.title = 'QA Status Generator';
 }
 
