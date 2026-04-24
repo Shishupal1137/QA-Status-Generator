@@ -183,13 +183,22 @@ function renderTasks() {
         <span class="towname" style="color:${color}">${name}</span>`;
     }).join('');
 
-    // Build bullets using the same smart splitter
-    const lines = splitTaskText(t.text);
-    const bulletsHtml = lines.map(line => `
-          <div class="ttext-row">
-            <div class="tbullet"></div>
-            <div class="ttext">${esc(line)}</div>
-          </div>`).join('');
+    // Parse task into structured items — apply same formatters as generated mail
+    const parsed = parseTaskBlock(t.text);
+    const bulletsHtml = parsed.map(item => {
+      if (!item.isBullet) {
+        let html;
+        if (item.style === 'bug-sub')          html = applyBugSubFormatting(item.text);
+        else if (item.style === 'label-verified') html = `<strong style="color:#1a7a1a">${applyVerifiedSubFormatting(item.text)}</strong>`;
+        else                                    html = applyVerifiedSubFormatting(item.text);
+        return `<div class="ttext-row" style="padding-left:14px;margin-top:2px"><span style="font-size:12px;line-height:1.5">${html}</span></div>`;
+      }
+      // Main bullet — use round bullet (●) not square
+      const html = item.style === 'reported-header'
+        ? `<strong style="color:#cc0000">${applyMainFormatting(item.text)}</strong>`
+        : applyMainFormatting(item.text);
+      return `<div class="ttext-row"><div class="tbullet"></div><div class="ttext">${html}</div></div>`;
+    }).join('');
 
     return `
       <div class="tcard">
@@ -232,79 +241,276 @@ function appendNoTasksRow(container, noTaskMembers) {
   container.appendChild(row);
 }
 
-// ---------- Smart task deduplication ----------
-// Handles two input styles:
-//   1. One item per line  → split on \n
-//   2. Multiple PORTAL-IDs typed as one long string → auto-split on PORTAL-/Reported/Bug keywords
-// Then deduplicates all items globally (case-insensitive) across all tasks.
+// =============================================
+//  TASK PARSING — hierarchical structure
+// =============================================
+//
+// Each parsed item has:
+//   { text, isBullet, style }
+//
+// Styles and what they mean:
+//   'main'               → • bullet, normal formatting
+//   'bug-sub'            → no bullet, indented, RED text
+//   'verified-sub'       → no bullet, indented, normal + colored status
+//   'continuation'       → no bullet, indented, normal (": Fixed" lines etc.)
+//   'label-verified'     → no bullet, indented, GREEN ("Verified Issue: N")
+//   'reported-header'    → • RED bullet + RED bold text ("Reported Standalone Bug:")
+//   'verified-header'    → • normal bullet + bold GREEN text ("Verified standalone bugs:")
 
-/** Split a raw task string into individual item strings */
-function splitTaskText(raw) {
-  const text = raw.trim();
-  if (!text) return [];
+function getLines(raw) {
+  // Prefer newline-split; fall back to PORTAL- keyword split
+  const byNL = raw.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (byNL.length > 1) return byNL;
 
-  // If user typed newlines, respect those first
-  const byNewline = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  if (byNewline.length > 1) return byNewline;
-
-  // Otherwise auto-split on common QA item prefixes:
-  // PORTAL-XXXXX, Reported Standalone Bug, Reported Bug, [QA Only Bug], [QA/prd Only Bug]
-  const SPLIT_RE = /(PORTAL-\d+|Reported\s+(?:Standalone\s+)?Bug[:\s#]|\[QA[^\]]*Bug\])/gi;
-
+  // Single block — split on PORTAL-/SERVICE- boundaries
+  const re = /(PORTAL-\d+|SERVICE-\d+)/gi;
   const parts = [];
-  let last = 0;
-  let match;
-  const re = new RegExp(SPLIT_RE.source, 'gi');
-
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > last) {
-      // text before this keyword — attach to previous part if exists, else start new
-      const before = text.slice(last, match.index).trim();
-      if (before && parts.length > 0) {
-        parts[parts.length - 1] += ' ' + before;
-      } else if (before) {
-        parts.push(before);
-      }
+  let last = 0, m;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) {
+      const before = raw.slice(last, m.index).trim();
+      if (before && parts.length > 0) parts[parts.length - 1] += ' ' + before;
+      else if (before) parts.push(before);
     }
-    // Start a new part at this keyword
-    parts.push(match[0]);
-    last = match.index + match[0].length;
+    parts.push(m[0]);
+    last = m.index + m[0].length;
   }
-
-  // Append any trailing text to last part
-  if (last < text.length) {
-    const tail = text.slice(last).trim();
-    if (tail) {
-      if (parts.length > 0) parts[parts.length - 1] += ' ' + tail;
-      else parts.push(tail);
-    }
+  if (last < raw.length) {
+    const tail = raw.slice(last).trim();
+    if (tail && parts.length > 0) parts[parts.length - 1] += ' ' + tail;
+    else if (tail) parts.push(tail);
   }
-
-  // If splitting produced nothing useful, return original
-  if (parts.length === 0) return [text];
-
-  // Merge each keyword with the text that follows it until the next keyword
-  // (already done above — each part starts with keyword + trailing text from re.exec loop)
-  // Final clean
-  return parts.map(p => p.trim()).filter(p => p.length > 0);
+  return parts.length ? parts.map(p => p.trim()).filter(p => p.length > 0) : [raw.trim()];
 }
 
-function buildSmartTaskLines(tasks) {
-  const seen = new Set();
-  const uniqueLines = [];
+function parseTaskBlock(rawText) {
+  const lines  = getLines(rawText);
+  const items  = [];
+  let mode     = 'main'; // current context
+
+  for (const line of lines) {
+    const lo = line.toLowerCase();
+
+    // ── "Reported Standalone Bug" / "Reported Standalone bug" header ──
+    if (/^reported\s+standalone\s+bug/i.test(line)) {
+      items.push({ text: line, isBullet: true, style: 'reported-header' });
+      mode = 'bug-sub';
+
+    // ── "Verified standalone bug(s)" header ──
+    } else if (/^verified\s+stand(?:[ -]?alone\s+)?bug/i.test(line)) {
+      items.push({ text: line, isBullet: true, style: 'verified-header' });
+      mode = 'verified-sub';
+
+    // ── "Verified Issue / Verified sub issue / Verified sub-issue" label ──
+    } else if (/^verified\s+(?:sub[- ]?)?issue/i.test(line)) {
+      items.push({ text: line, isBullet: false, style: 'label-verified' });
+      mode = 'verified-sub';
+
+    // ── PORTAL- / SERVICE- line ──
+    } else if (/^(PORTAL-|SERVICE-)/i.test(line)) {
+      const hasReported = /reported\s+(?:issue|bug)\s*[:\s]\s*\d+/i.test(line);
+
+      if (mode === 'bug-sub') {
+        // Sub-bug under a reported section → no bullet, red
+        items.push({ text: line, isBullet: false, style: 'bug-sub' });
+      } else if (mode === 'verified-sub') {
+        // Verified sub-item → no bullet, normal
+        items.push({ text: line, isBullet: false, style: 'verified-sub' });
+      } else {
+        // New main task → bullet
+        items.push({ text: line, isBullet: true, style: 'main' });
+        // If the main task itself has "Reported Issue: N", subsequent PORTALs are sub-bugs
+        mode = hasReported ? 'bug-sub' : 'main';
+      }
+
+    // ── "Reopen issue" continuation ──
+    } else if (/^reopen/i.test(line)) {
+      items.push({ text: line, isBullet: false, style: 'bug-sub' });
+
+    // ── Other text (": Fixed", descriptions, etc.) ──
+    } else {
+      const style = mode === 'bug-sub' ? 'bug-sub' : 'continuation';
+      items.push({ text: line, isBullet: false, style });
+    }
+  }
+
+  return items;
+}
+
+// Dedup + QATask-sort across all tasks
+function buildSmartTaskList(tasks) {
+  const seen   = new Set();
+  const result = [];
 
   for (const t of tasks) {
-    const items = splitTaskText(t.text);
-    for (const item of items) {
-      const norm = item.toLowerCase().replace(/\s+/g, ' ').trim();
+    const parsed = parseTaskBlock(t.text);
+    for (const item of parsed) {
+      const norm = item.text.toLowerCase().replace(/\s+/g, ' ').trim();
       if (norm && !seen.has(norm)) {
         seen.add(norm);
-        uniqueLines.push(item.replace(/\s+/g, ' ').trim());
+        result.push({ ...item, text: item.text.replace(/\s+/g, ' ').trim() });
       }
     }
   }
 
-  return uniqueLines;
+  // Move entire QATask blocks (main + their following sub-items) to the bottom.
+  // We do this by collecting groups: each main bullet starts a new group.
+  const groups   = [];
+  let   curGroup = [];
+
+  for (const item of result) {
+    if (item.isBullet && curGroup.length > 0) {
+      groups.push(curGroup);
+      curGroup = [];
+    }
+    curGroup.push(item);
+  }
+  if (curGroup.length > 0) groups.push(curGroup);
+
+  const isQAGroup = g => g[0] && g[0].isBullet && /qatask|build\s+verification/i.test(g[0].text);
+  const normal    = groups.filter(g => !isQAGroup(g));
+  const qa        = groups.filter(g =>  isQAGroup(g));
+
+  return [...normal, ...qa].flat();
+}
+
+// Render a single structured item to HTML — uses pre-formatted `f` for all cases
+function renderTaskItem(item) {
+  const f = applyFormatting(item.text);   // HTML-safe, with colors + bold IDs
+
+  switch (item.style) {
+
+    case 'main':
+      // • bullet, PORTAL bold, inline colors
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext">${f}</span></div>`;
+
+    case 'bug-sub':
+      // No bullet, indented, FULL LINE RED — PORTAL IDs still bold inside red
+      return `<div class="mail-sub mail-sub-bug"><span class="fmt-red">${f}</span></div>`;
+
+    case 'verified-sub':
+      // No bullet, indented, normal text — only keywords colored (Fixed=green etc.)
+      return `<div class="mail-sub">${f}</div>`;
+
+    case 'continuation':
+      // No bullet, indented, plain text (status lines like ": Fixed")
+      return `<div class="mail-sub">${f}</div>`;
+
+    case 'label-verified':
+      // "Verified Issue: N" or "Verified sub-issue" — no bullet, GREEN bold
+      return `<div class="mail-sub mail-label"><strong class="fmt-green">${f}</strong></div>`;
+
+    case 'reported-header':
+      // "Reported Standalone Bug:" — RED bullet dot + RED bold text
+      return `<div class="mail-bullet"><span class="mail-dot fmt-red">&#8226;</span><span class="mail-btext fmt-red"><strong>${f}</strong></span></div>`;
+
+    case 'verified-header':
+      // "Verified standalone bugs:" — normal bullet + GREEN bold
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext"><strong class="fmt-green">${f}</strong></span></div>`;
+
+    default:
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext">${f}</span></div>`;
+  }
+}
+
+// ── Formatter for MAIN items: PORTAL bold+black, keywords colored ──
+function applyMainFormatting(rawText) {
+  let h = rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  h = h.replace(/(PORTAL-\s*\d+|SERVICE-\d+)/gi, '<strong>$1</strong>');
+  h = h.replace(/(\[Qu?e?r?y\]|\[QUERY\])/gi, '<mark class="fmt-query">$1</mark>');
+  // RED keywords inline
+  h = h.replace(/(Reported\s+(?:Standalone\s+)?(?:Issue|Bug)\s*[:\d][^<\n]*)/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/(Reopen(?:ed)?\s+issue[^\n<]*)/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Still\s+(?:Replicating|Reproducible))\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Not\s+Fixed)\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Back\s+to\s+Dev(?:\s+Not\s+Fixed)?)\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(In[- ]Progress)\b/gi, '<span class="fmt-red">$1</span>');
+  // ORANGE
+  h = h.replace(/\b(Partially\s+[Ff]ixed)\b/gi, '<span class="fmt-orange">$1</span>');
+  h = h.replace(/((?:Marking\s+Jira\s+)?QA[- ]On[- ]Hold[^<,\n]*)/gi, '<span class="fmt-orange">$1</span>');
+  h = h.replace(/(Execution\s+completed\s+Put\s+QA[- ]On[- ]Hold[^<\n]*)/gi, '<span class="fmt-orange">$1</span>');
+  // GREEN
+  h = h.replace(/(Verified\s+(?:standalone\s+|stand\s+alone\s+|sub[- ]?)?(?:Issue|Bug)[^\n<:]*:?\s*\d*)/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/\b(QA[- ]Completed|QA\s+Completed)\b/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/\b(Closed)\b/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/(:?\s*\bFixed\b)/g, m => m.includes('fmt-') ? m : `<span class="fmt-green">${m}</span>`);
+  return h;
+}
+
+// ── Formatter for BUG-SUB items: PORTAL ID = red bold, rest = normal black ──
+// Rule from screenshots: only the ticket number is colored red, description stays black
+function applyBugSubFormatting(rawText) {
+  let h = rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // PORTAL/SERVICE ID → RED + bold (only the ID, not description)
+  h = h.replace(/(PORTAL-\s*\d+|SERVICE-\d+)/gi, '<strong><span class="fmt-red">$1</span></strong>');
+  h = h.replace(/(\[Qu?e?r?y\]|\[QUERY\])/gi, '<mark class="fmt-query">$1</mark>');
+  // Status keywords at end of line
+  h = h.replace(/\b(Still\s+(?:Replicating|Reproducible))\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Not\s+Fixed)\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Partially\s+[Ff]ixed)\b/gi, '<span class="fmt-orange">$1</span>');
+  h = h.replace(/\b(QA[- ]Completed|QA\s+Completed)\b/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/(:?\s*\bFixed\b)/g, m => m.includes('fmt-') ? m : `<span class="fmt-green">${m}</span>`);
+  return h;
+}
+
+// ── Formatter for VERIFIED-SUB items: PORTAL ID = bold black, keywords colored ──
+function applyVerifiedSubFormatting(rawText) {
+  let h = rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // PORTAL/SERVICE ID → bold black (NOT red)
+  h = h.replace(/(PORTAL-\s*\d+|SERVICE-\d+)/gi, '<strong>$1</strong>');
+  h = h.replace(/(\[Qu?e?r?y\]|\[QUERY\])/gi, '<mark class="fmt-query">$1</mark>');
+  h = h.replace(/\b(Still\s+(?:Replicating|Reproducible))\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Not\s+Fixed)\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(In[- ]Progress)\b/gi, '<span class="fmt-red">$1</span>');
+  h = h.replace(/\b(Partially\s+[Ff]ixed)\b/gi, '<span class="fmt-orange">$1</span>');
+  h = h.replace(/\b(QA[- ]Completed|QA\s+Completed)\b/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/\b(Closed)\b/gi, '<span class="fmt-green">$1</span>');
+  h = h.replace(/(:?\s*\bFixed\b)/g, m => m.includes('fmt-') ? m : `<span class="fmt-green">${m}</span>`);
+  return h;
+}
+
+// ── Keep applyFormatting as alias for main formatter ──
+function applyFormatting(rawText) { return applyMainFormatting(rawText); }
+
+// Render a single structured item to HTML
+function renderTaskItem(item) {
+  switch (item.style) {
+
+    case 'main':
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext">${applyMainFormatting(item.text)}</span></div>`;
+
+    case 'bug-sub':
+      // No bullet, indented. PORTAL ID = red bold, rest = black
+      return `<div class="mail-sub">${applyBugSubFormatting(item.text)}</div>`;
+
+    case 'verified-sub':
+      // No bullet, indented. PORTAL ID = bold black, status keywords colored
+      return `<div class="mail-sub">${applyVerifiedSubFormatting(item.text)}</div>`;
+
+    case 'continuation':
+      return `<div class="mail-sub">${applyVerifiedSubFormatting(item.text)}</div>`;
+
+    case 'label-verified':
+      // "Verified Issue: N" — no bullet, GREEN bold
+      return `<div class="mail-sub mail-label"><strong class="fmt-green">${applyVerifiedSubFormatting(item.text)}</strong></div>`;
+
+    case 'reported-header':
+      // "Reported Standalone Bug:" — RED bullet + RED bold text
+      return `<div class="mail-bullet"><span class="mail-dot fmt-red">&#8226;</span><span class="mail-btext"><strong class="fmt-red">${applyMainFormatting(item.text)}</strong></span></div>`;
+
+    case 'verified-header':
+      // "Verified standalone bugs:" — bullet + GREEN bold
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext"><strong class="fmt-green">${applyVerifiedSubFormatting(item.text)}</strong></span></div>`;
+
+    default:
+      return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext">${applyMainFormatting(item.text)}</span></div>`;
+  }
+}
+function formatNameList(members) {
+  const arr = [...members];
+  if (!arr.length) return '[no members selected]';
+  if (arr.length === 1) return arr[0];
+  return arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
 }
 
 // ---------- Build generated mail ----------
@@ -314,7 +520,6 @@ function build() {
   const recipient = document.getElementById('recipient').value || 'Jenny';
   const signoff   = document.getElementById('signoff').value   || 'Mohit';
 
-  // Format date as "21 April 2026"
   let dateStr = '[select date]';
   if (dateVal) {
     dateStr = new Date(dateVal).toLocaleDateString('en-GB', {
@@ -322,35 +527,43 @@ function build() {
     });
   }
 
-  // Member name list (comma-separated, all selected members)
-  const nameList = [...selectedMembers].join(', ') || '[no members selected]';
+  const nameList      = formatNameList(selectedMembers);
+  const structuredItems = buildSmartTaskList(tasks);
+  const BULLET        = '\u2022';
 
-  const BULLET = '\u2022';
-
-  // Smart deduplication:
-  // 1. Exact dedup — same text by different people → show once
-  // 2. Prefix dedup — if task A is the start of task B, show A once then only B's unique suffix
-  //    e.g. "PORTAL-77943 ... for QA" + "PORTAL-77943 ... for QA Report issue 01"
-  //    → "PORTAL-77943 ... for QA" then "Report issue 01" (not repeated)
-  const smartLines = buildSmartTaskLines(tasks);
-
-  const taskBlock = smartLines.length
-    ? smartLines.map(line => `${BULLET} ${line}`).join('\n')
+  // ── Plain text (for copy / Outlook URL) ──
+  const plainBlock = structuredItems.length
+    ? structuredItems.map(item =>
+        item.isBullet ? `${BULLET} ${item.text}` : `  ${item.text}`
+      ).join('\n')
     : `${BULLET} [no tasks added yet]`;
 
-  const mail =
+  const plainMail =
 `Hi ${recipient},
 
 Below are the tasks performed by the Orion India QA team on ${dateStr},
 
 ${nameList}:
 
-${taskBlock}
+${plainBlock}
 
 Thanks,
 ${signoff}`;
 
-  document.getElementById('outbox').textContent = mail;
+  // ── HTML (visual display) ──
+  const taskHtml = structuredItems.length
+    ? structuredItems.map(item => renderTaskItem(item)).join('')
+    : `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext fmt-muted">[no tasks added yet]</span></div>`;
+
+  const outbox = document.getElementById('outbox');
+  outbox.dataset.plain = plainMail;
+
+  outbox.innerHTML =
+    `<p class="ml">Hi ${esc(recipient)},</p>` +
+    `<p class="ml">Below are the tasks performed by the Orion India QA team on ${esc(dateStr)},</p>` +
+    `<p class="ml"><strong><u>${esc(nameList)}:</u></strong></p>` +
+    `<div class="ml">${taskHtml}</div>` +
+    `<p class="ml">Thanks,<br>${esc(signoff)}</p>`;
 }
 
 // ---------- Open in Mail ----------
@@ -366,7 +579,8 @@ function buildOutlookUrl() {
     });
   }
   const subject = `Orion India QA Team Task Report - ${dateStr}`;
-  const body    = document.getElementById('outbox').textContent;
+  const body = document.getElementById('outbox').dataset.plain
+             || document.getElementById('outbox').innerText;
   const to      = document.getElementById('toEmail').value.trim();
 
   // NOTE: Outlook Web's compose URL does NOT support the &cc= parameter —
@@ -377,35 +591,66 @@ function buildOutlookUrl() {
     + '&body='    + encodeURIComponent(body);
 }
 
-/** Open Outlook and auto-copy CC to clipboard, then show paste-reminder toast */
+/** Open Outlook compose: To+Subject+body pre-filled (plain text), formatted HTML copied to clipboard */
 function launchOutlookWithCC() {
-  const cc = document.getElementById('ccEmail').value.trim();
+  const outbox    = document.getElementById('outbox');
+  const plainText = outbox.dataset.plain || outbox.innerText;
+  const cc        = document.getElementById('ccEmail').value.trim();
 
-  // Copy CC email to clipboard first
-  navigator.clipboard.writeText(cc).then(() => {
-    showCCToast(cc);
-  }).catch(() => {
-    // Fallback clipboard copy
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = cc;
-      ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select(); document.execCommand('copy');
-      document.body.removeChild(ta);
-    } catch(e) {}
-    showCCToast(cc);
-  });
+  // Build inline-styled HTML for Outlook (class names stripped, inline styles added)
+  const styledHtml = outbox.innerHTML
+    .replace(/class="fmt-red"/g,    'style="color:#cc0000"')
+    .replace(/class="fmt-green"/g,  'style="color:#1a7a1a"')
+    .replace(/class="fmt-orange"/g, 'style="color:#b85c00;font-weight:bold"')
+    .replace(/class="fmt-query"/g,  'style="background:#FFE500;color:#111;padding:0 2px;border-radius:2px;font-weight:bold"')
+    .replace(/class="mail-bullet"/g,'style="display:block;margin-bottom:6px;font-family:Calibri,Arial,sans-serif;font-size:11pt"')
+    .replace(/class="mail-dot[^"]*"/g,'style="margin-right:6px"')
+    .replace(/class="mail-btext"/g, 'style="display:inline"')
+    .replace(/class="mail-sub bug-sub"/g,'style="display:block;margin-left:18px;margin-bottom:3px;font-family:Calibri,Arial,sans-serif;font-size:11pt"')
+    .replace(/class="mail-sub[^"]*"/g,   'style="display:block;margin-left:18px;margin-bottom:3px;font-family:Calibri,Arial,sans-serif;font-size:11pt"')
+    .replace(/class="mail-label"/g, 'style="display:block;margin-left:18px;margin-bottom:3px;font-family:Calibri,Arial,sans-serif;font-size:11pt"')
+    .replace(/class="ml"/g,         'style="margin:0 0 12px 0;font-family:Calibri,Arial,sans-serif;font-size:11pt"')
+    .replace(/class="[^"]*"/g, ''); // strip any remaining class attrs
 
-  window.open(buildOutlookUrl(), '_blank');
+  const htmlBody = `<html><head></head><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000">${styledHtml}</body></html>`;
+
+  // Copy HTML + plain to clipboard so user can paste formatted version
+  try {
+    const htmlBlob = new Blob([htmlBody],  { type: 'text/html'  });
+    const txtBlob  = new Blob([plainText], { type: 'text/plain' });
+    navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': txtBlob })]).catch(() => {
+      navigator.clipboard.writeText(plainText);
+    });
+  } catch(e) {
+    try { navigator.clipboard.writeText(plainText); } catch(e2) {}
+  }
+
+  showOutlookToast(cc);
+
+  // Open Outlook with plain body — user then pastes HTML version over it for colors
+  const dateVal = document.getElementById('date').value;
+  let dateStr   = 'Report';
+  if (dateVal) dateStr = new Date(dateVal).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  const subject = `Orion India QA Team Task Report - ${dateStr}`;
+  const to      = document.getElementById('toEmail').value.trim();
+
+  const url = 'https://outlook.cloud.microsoft/mail/deeplink/compose'
+    + '?to='      + encodeURIComponent(to)
+    + '&subject=' + encodeURIComponent(subject)
+    + '&body='    + encodeURIComponent(plainText);
+  window.open(url, '_blank');
 }
 
-function showCCToast(cc) {
-  const t = document.getElementById('ccToast');
-  document.getElementById('ccToastEmail').textContent = cc;
+function showOutlookToast(cc) {
+  const t   = document.getElementById('ccToast');
+  const em  = document.getElementById('ccToastEmail');
+  if (em) em.textContent = cc || '(no CC set)';
+  const hint = t.querySelector('.cc-toast-hint');
+  if (hint) hint.innerHTML =
+    'To get <strong>bold + colours</strong> in Outlook: click in email body → <kbd>Ctrl+A</kbd> → <kbd>Ctrl+V</kbd> &nbsp;|&nbsp; For CC: click CC field → <kbd>Ctrl+V</kbd>';
   t.classList.add('show');
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 7000);
+  t._timer = setTimeout(() => t.classList.remove('show'), 14000);
 }
 
 // ---------- Open in Mail ----------
@@ -587,19 +832,79 @@ function updateBanner() {
 // ---------- Copy mail ----------
 
 function copyMail() {
-  const text = document.getElementById('outbox').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const tag = document.getElementById('ctag');
+  const outbox    = document.getElementById('outbox');
+  const plainText = outbox.dataset.plain || outbox.innerText;
+  const tag       = document.getElementById('ctag');
+
+  const showFeedback = () => {
     tag.classList.add('show');
     setTimeout(() => tag.classList.remove('show'), 2000);
-  }).catch(() => {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-  });
+  };
+
+  // Try to copy as HTML so pasting into Outlook preserves bold/colors
+  try {
+    const htmlContent = `<html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000">${outbox.innerHTML}</body></html>`;
+    const htmlBlob    = new Blob([htmlContent], { type: 'text/html' });
+    const textBlob    = new Blob([plainText],   { type: 'text/plain' });
+    const item        = new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob });
+    navigator.clipboard.write([item]).then(showFeedback).catch(() => {
+      // Fallback: plain text
+      navigator.clipboard.writeText(plainText).then(showFeedback);
+    });
+  } catch(e) {
+    // Older browser fallback
+    navigator.clipboard.writeText(plainText).then(showFeedback).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = plainText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showFeedback();
+    });
+  }
+}
+
+// ---------- Day strip ----------
+
+const DAYS     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const TODAY_IDX = new Date().getDay(); // 0=Sun … 6=Sat
+let   activeDayIdx = TODAY_IDX;
+let   tuesdayReminderDismissed = false;
+
+function renderDayStrip() {
+  const strip = document.getElementById('dayStrip');
+  if (!strip) return;
+  strip.innerHTML = DAYS.map((d, i) => {
+    const isToday  = i === TODAY_IDX;
+    const isActive = i === activeDayIdx;
+    return `<button class="day-chip ${isActive ? 'day-active' : ''} ${isToday ? 'day-today' : ''}"
+               onclick="selectDay(${i})" title="${isToday ? 'Today' : d}">
+              ${d}${isToday ? '<span class="day-dot"></span>' : ''}
+            </button>`;
+  }).join('');
+  updateTuesdayReminder();
+}
+
+function selectDay(idx) {
+  activeDayIdx = idx;
+  renderDayStrip();
+}
+
+function updateTuesdayReminder() {
+  const banner = document.getElementById('tuesdayBanner');
+  if (!banner) return;
+  // Show if selected day is Thursday (idx 4) and not dismissed
+  if (activeDayIdx === 4 && !tuesdayReminderDismissed) {
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function dismissTuesdayReminder() {
+  tuesdayReminderDismissed = true;
+  updateTuesdayReminder();
 }
 
 // ---------- Clear report ----------
@@ -613,22 +918,260 @@ function hideClearModal() {
 }
 
 function confirmClear() {
-  // Reset all state
   selectedMembers.clear();
   assignees.clear();
   tasks = [];
 
-  // Reset form fields
-  document.getElementById('date').value      = '';
-  document.getElementById('recipient').value = 'Jenny';
-  document.getElementById('signoff').value   = 'Mohit';
-  document.getElementById('tinput').value    = '';
+  document.getElementById('date').value       = '';
+  document.getElementById('recipient').value  = 'Jenny';
+  document.getElementById('signoff').value    = 'Mohit';
+  document.getElementById('tinput').value     = '';
   document.getElementById('hint').textContent = '';
+
+  // Reset day to system's current day
+  activeDayIdx               = TODAY_IDX;
+  tuesdayReminderDismissed   = false;
+  renderDayStrip();
 
   hideClearModal();
   renderMembers();
   renderTasks();
   build();
+}
+
+// ---------- Login & Permissions ----------
+
+const MEMBER_PASSWORD = 'Orion@123';
+const LEAD_PASSWORD   = 'LOrion@123';
+const LEAD_NAME       = 'Mohit';
+
+let currentUser = null;
+let isLead      = false;
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display         = 'none';
+}
+
+function attemptLogin() {
+  const name = document.getElementById('loginName').value;
+  const pass = document.getElementById('loginPass').value;
+  const err  = document.getElementById('loginErr');
+  err.textContent = '';
+
+  if (!name) { err.textContent = 'Please select your name.'; return; }
+  if (!pass)  { err.textContent = 'Please enter your password.'; return; }
+
+  const correctPass = (name === LEAD_NAME) ? LEAD_PASSWORD : MEMBER_PASSWORD;
+  if (pass !== correctPass) {
+    err.textContent = 'Incorrect password. Please try again.';
+    document.getElementById('loginPass').value = '';
+    return;
+  }
+
+  currentUser = name;
+  isLead      = (name === LEAD_NAME);
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display         = 'flex';
+
+  // Show logged-in user badge
+  document.getElementById('loginBadge').textContent = currentUser + (isLead ? ' (Lead)' : '');
+  document.getElementById('loginBadge').style.display = 'flex';
+
+  // Pre-select the member who logged in
+  selectedMembers.add(currentUser);
+  if (!isLead) {
+    assignees.add(currentUser);
+    // Lock member grid — team members can't change who's selected
+    setTimeout(() => {
+      const grid = document.getElementById('mgrid');
+      if (grid) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
+    }, 50);
+  }
+
+  applyPermissions();
+  renderDayStrip();
+  renderMembers();
+  renderTasks();
+  build();
+}
+
+// Toggle password visibility
+function togglePassVis() {
+  const inp = document.getElementById('loginPass');
+  inp.type  = inp.type === 'password' ? 'text' : 'password';
+}
+
+function applyPermissions() {
+  if (isLead) return; // Lead sees everything
+
+  // Hide lead-only buttons
+  document.querySelectorAll('.cpybtn, .mailbtn, .schbtn, .clearbtn, .savebtn, .viewbtn').forEach(el => {
+    el.style.display = 'none';
+  });
+  // Disable report detail fields
+  ['date','recipient','signoff','toEmail','ccEmail'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = true; el.style.opacity = '0.55'; }
+  });
+  // Hide out-actions row
+  const outActions = document.querySelector('.out-actions');
+  if (outActions) outActions.style.display = 'none';
+
+  // Show read-only note — use static element (never duplicate)
+  const note = document.getElementById('leadOnlyNote');
+  if (note) note.style.display = 'block';
+
+  // Show common mail toggle for team members
+  const toggleRow = document.getElementById('commonToggleRow');
+  if (toggleRow) toggleRow.style.display = 'flex';
+}
+
+function restorePermissions() {
+  document.querySelectorAll('.cpybtn, .mailbtn, .schbtn, .clearbtn, .savebtn, .viewbtn').forEach(el => el.style.display = '');
+  ['date','recipient','signoff','toEmail','ccEmail'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = false; el.style.opacity = ''; }
+  });
+  const outActions = document.querySelector('.out-actions');
+  if (outActions) outActions.style.display = '';
+  const note = document.getElementById('leadOnlyNote');
+  if (note) note.style.display = 'none';
+  const toggleRow = document.getElementById('commonToggleRow');
+  if (toggleRow) toggleRow.style.display = 'none';
+  // Re-lock member grid if needed
+  const grid = document.getElementById('mgrid');
+  if (grid) { grid.style.pointerEvents = ''; grid.style.opacity = ''; }
+}
+
+// ---------- Common mail toggle (team members) ----------
+let commonMailEnabled = false;
+
+function toggleCommonMail() {
+  commonMailEnabled = !commonMailEnabled;
+  const btn   = document.getElementById('commonToggleBtn');
+  const label = document.getElementById('commonToggleLabel');
+  const grid  = document.getElementById('mgrid');
+
+  if (commonMailEnabled) {
+    btn.classList.add('toggle-on');
+    label.textContent = 'Common mail ON — select teammates to include';
+    // Unlock member grid so they can select others
+    if (grid) { grid.style.pointerEvents = ''; grid.style.opacity = ''; }
+  } else {
+    btn.classList.remove('toggle-on');
+    label.textContent = 'Common mail — include other members in this report';
+    // Re-lock grid, reset to only current user
+    selectedMembers.clear();
+    selectedMembers.add(currentUser);
+    assignees.clear();
+    assignees.add(currentUser);
+    if (grid) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
+    renderMembers();
+    build();
+  }
+}
+
+// ---------- Save / View saved mail (Lead only) ----------
+const MAX_SAVED = 7;
+
+function getSavedMails() {
+  try { return JSON.parse(localStorage.getItem('qa-saved-mails') || '[]'); } catch(e) { return []; }
+}
+
+function saveFinalMail() {
+  const outbox    = document.getElementById('outbox');
+  const plainText = outbox.dataset.plain || outbox.innerText;
+  const htmlBody  = outbox.innerHTML;
+  if (!plainText || plainText.includes('[no tasks added yet]')) {
+    alert('Please add tasks before saving the report.');
+    return;
+  }
+  const saved = getSavedMails();
+  const entry = {
+    id:        Date.now(),
+    savedAt:   new Date().toLocaleString('en-GB'),
+    plain:     plainText,
+    html:      htmlBody,
+    date:      document.getElementById('date').value,
+    recipient: document.getElementById('recipient').value,
+  };
+  saved.unshift(entry);
+  if (saved.length > MAX_SAVED) saved.length = MAX_SAVED;
+  try { localStorage.setItem('qa-saved-mails', JSON.stringify(saved)); } catch(e) {}
+  showSaveConfirm();
+}
+
+function showSaveConfirm() {
+  document.getElementById('saveConfirmModal').classList.add('open');
+}
+
+function hideSaveConfirm() {
+  document.getElementById('saveConfirmModal').classList.remove('open');
+}
+
+function viewSavedMails() {
+  const saved = getSavedMails();
+  const modal = document.getElementById('viewSavedModal');
+  const list  = document.getElementById('savedMailList');
+
+  if (!saved.length) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:#888;font-size:13px">No saved reports yet.</div>';
+  } else {
+    list.innerHTML = saved.map((m, i) => {
+      const dateLabel = m.date
+        ? new Date(m.date).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })
+        : 'No date';
+      return `
+        <div class="saved-mail-item" id="savedItem${m.id}">
+          <div class="saved-mail-meta">
+            <span class="saved-mail-date">${dateLabel}</span>
+            <span class="saved-mail-time">Saved: ${m.savedAt}</span>
+            <span class="saved-mail-to">To: ${m.recipient || 'Jenny'}</span>
+          </div>
+          <div class="saved-mail-preview">${m.html}</div>
+          <div class="saved-mail-actions">
+            <button class="saved-del-btn" onclick="deleteSavedMail(${m.id})">Delete</button>
+          </div>
+        </div>`;
+    }).join('<div class="saved-divider"></div>');
+  }
+
+  modal.classList.add('open');
+}
+
+function deleteSavedMail(id) {
+  let saved = getSavedMails().filter(m => m.id !== id);
+  try { localStorage.setItem('qa-saved-mails', JSON.stringify(saved)); } catch(e) {}
+  viewSavedMails(); // refresh
+}
+
+function hideViewSaved() {
+  document.getElementById('viewSavedModal').classList.remove('open');
+}
+
+function logout() {
+  currentUser        = null;
+  isLead             = false;
+  commonMailEnabled  = false;
+  selectedMembers.clear();
+  assignees.clear();
+  tasks = [];
+
+  // Reset toggle UI
+  const btn   = document.getElementById('commonToggleBtn');
+  const label = document.getElementById('commonToggleLabel');
+  if (btn)   btn.classList.remove('toggle-on');
+  if (label) label.textContent = 'Common mail — include other members in this report';
+
+  document.getElementById('loginBadge').style.display = 'none';
+  document.getElementById('loginName').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginErr').textContent = '';
+
+  restorePermissions();
+  showLogin();
 }
 
 // ---------- Dark / Light mode ----------
@@ -654,11 +1197,8 @@ function applyTheme(theme) {
 }
 
 // ---------- Init ----------
-// Restore saved theme
 try {
   const saved = localStorage.getItem('qa-theme');
   if (saved) applyTheme(saved);
 } catch(e) {}
-renderMembers();
-renderTasks();
-build();
+showLogin();
