@@ -113,12 +113,39 @@ function toggleAssignee(name) {
 
 // ---------- Add task ----------
 
+// ---------- Shared tasks notification ----------
+function showSharedTasksToast(count) {
+  const t = document.getElementById('sharedToast');
+  if (!t) return;
+  document.getElementById('sharedToastCount').textContent =
+    count + ' task' + (count > 1 ? 's' : '') + ' already added by other members';
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+// ---------- Task persistence ----------
+
+const TASKS_KEY = 'qa-daily-tasks';
+
+function saveTasksToStorage() {
+  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch(e) {}
+}
+
+function loadTasksFromStorage() {
+  try {
+    const raw = localStorage.getItem(TASKS_KEY);
+    if (raw) tasks = JSON.parse(raw);
+  } catch(e) { tasks = []; }
+}
+
+// ---------- Add task ----------
+
 function addTask() {
   const ta   = document.getElementById('tinput');
   const val  = ta.value.trim();
   const hint = document.getElementById('hint');
 
-  // Validation
   if (!selectedMembers.size) {
     hint.textContent = 'Please select at least one team member first.';
     shake('mgrid');
@@ -140,6 +167,7 @@ function addTask() {
   ta.value = '';
   ta.focus();
 
+  saveTasksToStorage(); // ← persist immediately
   renderTasks();
   build();
 }
@@ -148,6 +176,7 @@ function addTask() {
 
 function removeTask(index) {
   tasks.splice(index, 1);
+  saveTasksToStorage(); // ← persist after removal
   renderTasks();
   build();
 }
@@ -921,6 +950,7 @@ function confirmClear() {
   selectedMembers.clear();
   assignees.clear();
   tasks = [];
+  try { localStorage.removeItem(TASKS_KEY); } catch(e) {} // clear shared tasks
 
   document.getElementById('date').value       = '';
   document.getElementById('recipient').value  = 'Jenny';
@@ -991,6 +1021,22 @@ function attemptLogin() {
   }
 
   applyPermissions();
+
+  // ── Load shared tasks saved by previous members ──
+  loadTasksFromStorage();
+
+  // Restore all members mentioned in saved tasks into selectedMembers
+  tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
+  // Also add current user
+  selectedMembers.add(currentUser);
+  if (!isLead) assignees.add(currentUser);
+
+  // Notify if tasks from others already exist
+  const othersCount = tasks.filter(t => !t.members.includes(currentUser)).length;
+  if (othersCount > 0) {
+    setTimeout(() => showSharedTasksToast(othersCount), 400);
+  }
+
   renderDayStrip();
   renderMembers();
   renderTasks();

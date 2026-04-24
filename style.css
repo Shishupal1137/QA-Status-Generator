@@ -1579,3 +1579,29 @@ body {
 [data-theme="dark"] .saved-mail-preview { background: var(--surface2); }
 [data-theme="dark"] .toggle-btn { background: var(--border2); }
 [data-theme="dark"] .toggle-btn.toggle-on { background: var(--teal); }
+
+/* ---------- Shared tasks toast ---------- */
+.shared-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #1e293b;
+  border-left: 4px solid var(--teal);
+  color: white;
+  border-radius: 10px;
+  padding: 13px 18px;
+  max-width: 320px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+  z-index: 2001;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.shared-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
