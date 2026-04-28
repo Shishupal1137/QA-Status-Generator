@@ -253,6 +253,49 @@
       <div class="mems" id="mgrid"></div>
     </div>
 
+    <!-- GIVE TEAM TASK (Lead only) -->
+    <div class="card" id="giveTaskCard" style="display:none">
+      <div class="slabel">
+        <div class="sdot" style="background:#534AB7"></div>Give team task
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <span class="give-task-sub">Assign a task to specific members</span>
+          <button id="giveTaskToggleBtn" class="toggle-btn" onclick="toggleGiveTask()" title="Enable/disable">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+      <div id="giveTaskBody" style="display:none">
+        <div class="give-task-who">
+          <span class="give-task-label">Assign to:</span>
+          <div class="give-task-chips" id="giveTaskChips"></div>
+        </div>
+        <div class="input-row" style="margin-top:10px">
+          <div class="ta-wrap">
+            <textarea id="giveTaskInput" placeholder="Enter task to assign to selected members…" rows="4"></textarea>
+            <div class="hint" id="giveTaskHint"></div>
+          </div>
+          <button class="addbtn" style="background:#534AB7" onclick="addLeadTask()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Assign
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASSIGNED TASKS (visible to member if lead assigned them tasks) -->
+    <div class="card" id="assignedTaskCard" style="display:none">
+      <div class="slabel">
+        <div class="sdot" style="background:#534AB7"></div>
+        <span>Tasks assigned by Lead</span>
+        <span id="atbadge" class="badge" style="display:none;background:#EEF2FF;color:#534AB7;border:1px solid #c7d2fe">0</span>
+      </div>
+      <div id="assignedTaskList">
+        <div class="empty">No tasks assigned yet.</div>
+      </div>
+    </div>
+
     <!-- ADD TASK -->
     <div class="card">
       <div class="slabel"><div class="sdot"></div>Add task</div>

@@ -15,13 +15,13 @@ const FIREBASE_CONFIG = {
   appId:             "1:700142321129:web:835c19f5964e270f561f78"
 };
 
-let db             = null;
-let tasksRef       = null;
-let reportRef      = null;   // report details (date, recipient, signoff, to, cc)
-let savedMailsRef  = null;   // lead's saved mails
-let fbListener     = null;   // tasks listener
-let reportListener = null;   // report details listener
+let leadTasksRef   = null;
+let leadFbListener = null;
+let leadTasks      = [];      // { id, members[], text, assignedBy }
+let giveTaskEnabled = false;
+let leadTaskAssignees = new Set(); // members selected in Give Task section
 
+// inside initFirebase — add leadTasksRef
 function initFirebase() {
   try {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
@@ -29,12 +29,189 @@ function initFirebase() {
     tasksRef      = db.ref('qa-daily-tasks');
     reportRef     = db.ref('qa-report-details');
     savedMailsRef = db.ref('qa-saved-mails');
+    leadTasksRef  = db.ref('qa-lead-tasks');
     console.log('[Firebase] connected ✓');
   } catch (e) {
     console.warn('[Firebase] not configured — localStorage fallback active:', e.message);
-    db = null; tasksRef = null; reportRef = null; savedMailsRef = null;
+    db = null; tasksRef = null; reportRef = null; savedMailsRef = null; leadTasksRef = null;
   }
 }
+
+// ── Save lead tasks ──
+function saveLeadTasks() {
+  if (db && leadTasksRef) {
+    leadTasksRef.set(leadTasks.length ? leadTasks : null)
+      .catch(e => console.warn('[Firebase] leadTasks write error:', e.code));
+  } else {
+    try { localStorage.setItem('qa-lead-tasks', JSON.stringify(leadTasks)); } catch(e) {}
+  }
+}
+
+// ── Start lead tasks listener ──
+function startLeadTasksListener(onUpdate) {
+  if (leadFbListener && leadTasksRef) { leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
+  if (db && leadTasksRef) {
+    leadFbListener = leadTasksRef.on('value', snapshot => {
+      const val = snapshot.val();
+      leadTasks = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+      onUpdate();
+    }, err => {
+      console.warn('[Firebase] leadTasks listener error:', err.code);
+      try { leadTasks = JSON.parse(localStorage.getItem('qa-lead-tasks') || '[]'); } catch(e) { leadTasks = []; }
+      onUpdate();
+    });
+  } else {
+    try { leadTasks = JSON.parse(localStorage.getItem('qa-lead-tasks') || '[]'); } catch(e) { leadTasks = []; }
+    onUpdate();
+  }
+}
+
+function stopLeadTasksListener() {
+  if (leadTasksRef && leadFbListener) { leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
+}
+
+// ── Toggle "Give Team Task" section (lead only) ──
+function toggleGiveTask() {
+  giveTaskEnabled = !giveTaskEnabled;
+  const btn  = document.getElementById('giveTaskToggleBtn');
+  const body = document.getElementById('giveTaskBody');
+  if (giveTaskEnabled) {
+    btn.classList.add('toggle-on');
+    body.style.display = 'block';
+    renderGiveTaskChips();
+  } else {
+    btn.classList.remove('toggle-on');
+    body.style.display = 'none';
+    leadTaskAssignees.clear();
+  }
+}
+
+// ── Render member chips inside "Give Task" section ──
+function renderGiveTaskChips() {
+  const wrap = document.getElementById('giveTaskChips');
+  if (!wrap) return;
+  wrap.innerHTML = MEMBERS.map((name, i) => {
+    const col = COLORS[i];
+    const sel = leadTaskAssignees.has(name);
+    return `<div class="give-chip ${sel ? 'give-chip-sel' : ''}"
+         style="${sel ? `background:${col};border-color:${col};color:white` : ''}"
+         onclick="toggleLeadAssignee('${name}')">
+      <div class="tav" style="background:${sel ? 'rgba(255,255,255,0.3)' : col};color:white;width:18px;height:18px;font-size:8px">${initials(name)}</div>
+      ${name}
+    </div>`;
+  }).join('');
+}
+
+function toggleLeadAssignee(name) {
+  if (leadTaskAssignees.has(name)) leadTaskAssignees.delete(name);
+  else leadTaskAssignees.add(name);
+  renderGiveTaskChips();
+}
+
+// ── Add a lead-assigned task ──
+function addLeadTask() {
+  const ta   = document.getElementById('giveTaskInput');
+  const hint = document.getElementById('giveTaskHint');
+  const val  = ta.value.trim();
+
+  if (!leadTaskAssignees.size) {
+    hint.textContent = 'Please select at least one member to assign this task to.';
+    return;
+  }
+  if (!val) {
+    hint.textContent = 'Please enter a task description.';
+    ta.focus();
+    return;
+  }
+
+  hint.textContent = '';
+  leadTasks.push({ id: Date.now(), members: [...leadTaskAssignees], text: val, assignedBy: currentUser });
+  ta.value = '';
+  ta.focus();
+  saveLeadTasks();
+  renderAssignedTasks();
+}
+
+// ── Remove a lead task (lead only) ──
+function removeLeadTask(id) {
+  leadTasks = leadTasks.filter(t => t.id !== id);
+  saveLeadTasks();
+  renderAssignedTasks();
+}
+
+// ── Render "Assigned Tasks" section ──
+function renderAssignedTasks() {
+  const card   = document.getElementById('assignedTaskCard');
+  const list   = document.getElementById('assignedTaskList');
+  const badge  = document.getElementById('atbadge');
+  if (!card || !list) return;
+
+  // Determine which tasks this user can see
+  const visible = isLead
+    ? leadTasks
+    : leadTasks.filter(t => t.members.includes(currentUser));
+
+  if (visible.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = 'block';
+  badge.style.display = 'inline-flex';
+  badge.textContent   = visible.length + ' task' + (visible.length !== 1 ? 's' : '');
+
+  list.innerHTML = visible.map(t => {
+    const ownerChips = t.members.map((name, pos) => {
+      const idx   = MEMBERS.indexOf(name);
+      const color = COLORS[idx] || COLORS[0];
+      return `${pos > 0 ? '<span class="tsep">,</span>' : ''}
+              <div class="tav" style="background:${color}">${initials(name)}</div>
+              <span class="towname" style="color:${color}">${name}</span>`;
+    }).join('');
+
+    const parsed     = parseTaskBlock(t.text);
+    const bulletsHtml = parsed.map(item => {
+      if (!item.isBullet) {
+        const html = item.style === 'bug-sub' ? applyBugSubFormatting(item.text) : applyVerifiedSubFormatting(item.text);
+        return `<div class="ttext-row" style="padding-left:14px;margin-top:2px"><span style="font-size:12px">${html}</span></div>`;
+      }
+      return `<div class="ttext-row"><div class="tbullet" style="background:#534AB7"></div><div class="ttext">${applyMainFormatting(item.text)}</div></div>`;
+    }).join('');
+
+    return `
+      <div class="tcard" style="border-left:3px solid #534AB7">
+        <div class="tbody">
+          <div class="towner" style="margin-bottom:6px">
+            <span style="font-size:10px;font-weight:600;color:#534AB7;text-transform:uppercase;letter-spacing:.06em;margin-right:6px">Assigned to</span>
+            ${ownerChips}
+          </div>
+          ${bulletsHtml}
+        </div>
+        ${isLead ? `<button class="tdel" onclick="removeLeadTask(${t.id})" style="border-color:#c7d2fe;color:#534AB7">Remove</button>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ── Show lead task card for lead ──
+function applyLeadTaskUI() {
+  const giveCard = document.getElementById('giveTaskCard');
+  if (giveCard) giveCard.style.display = isLead ? 'block' : 'none';
+}
+
+// ── Clear lead tasks on clear report ──
+function clearLeadTasks() {
+  leadTasks = [];
+  if (db && leadTasksRef) leadTasksRef.remove().catch(() => {});
+  else { try { localStorage.removeItem('qa-lead-tasks'); } catch(e) {} }
+  renderAssignedTasks();
+}
+
+// ── Stop all listeners including lead ──
+let tasksRef       = null;
+let reportRef      = null;   // report details (date, recipient, signoff, to, cc)
+let savedMailsRef  = null;   // lead's saved mails
+let fbListener     = null;   // tasks listener
+let reportListener = null;   // report details listener
 
 // ── Write tasks to Firebase ──
 function saveTasksToStorage() {
@@ -115,10 +292,11 @@ function startTasksListener(onUpdate) {
   }
 }
 
-// ── Stop all listeners ──
+// ── Stop all listeners including lead ──
 function stopAllListeners() {
-  if (tasksRef  && fbListener)     { tasksRef.off('value', fbListener);     fbListener     = null; }
-  if (reportRef && reportListener) { reportRef.off('value', reportListener); reportListener = null; }
+  if (tasksRef   && fbListener)      { tasksRef.off('value', fbListener);      fbListener     = null; }
+  if (reportRef  && reportListener)  { reportRef.off('value', reportListener);  reportListener = null; }
+  if (leadTasksRef && leadFbListener){ leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
 }
 
 // ── Clear all tasks from Firebase ──
@@ -1245,9 +1423,13 @@ function attemptLogin() {
   }
 
   applyPermissions();
+  applyLeadTaskUI();
 
   // ── Start real-time listeners ──
   startReportDetailsListener();
+  startLeadTasksListener(() => {
+    renderAssignedTasks();
+  });
 
   let firstLoad = true;
   startTasksListener(() => {
@@ -1490,7 +1672,9 @@ initFirebase();
     if (!isLead) assignees.add(currentUser);
 
     applyPermissions();
+    applyLeadTaskUI();
     startReportDetailsListener();
+    startLeadTasksListener(() => { renderAssignedTasks(); });
 
     let firstLoad = true;
     startTasksListener(() => {
