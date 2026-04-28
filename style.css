@@ -1605,3 +1605,23 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* ---------- Live sync pulse ---------- */
+.sync-pulse {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--teal-mid);
+  opacity: 0.7;
+  transition: opacity 0.3s, color 0.3s;
+}
+.sync-pulse.pulse-on {
+  color: var(--teal);
+  opacity: 1;
+  animation: syncFlash 1.6s ease-out;
+}
+@keyframes syncFlash {
+  0%   { opacity: 1; color: #1D9E75; }
+  50%  { opacity: 1; color: #5DCAA5; }
+  100% { opacity: 0.7; color: var(--teal-mid); }
+}

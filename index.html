@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Status Generator</title>
+  <!-- Firebase SDK v8 (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -154,7 +157,9 @@
         </div>
         <div>
           <div class="hero-title">QA Status Generator</div>
-          <div class="hero-sub">Orion India QA Team &middot; Daily Report</div>
+          <div class="hero-sub">Orion India QA Team &middot; Daily Report
+            <span id="syncPulse" class="sync-pulse" title="Synced with cloud">&#9679; Live</span>
+          </div>
         </div>
       </div>
       <div class="hero-right">
@@ -218,24 +223,24 @@
       <div class="slabel"><div class="sdot"></div>Report details</div>
       <div class="frow">
         <label for="date">Date</label>
-        <input type="date" id="date" oninput="build()" />
+        <input type="date" id="date" oninput="build();saveReportDetails()" />
       </div>
       <div class="frow">
         <label for="recipient">Recipient</label>
-        <input type="text" id="recipient" value="Jenny" oninput="build()" />
+        <input type="text" id="recipient" value="Jenny" oninput="build();saveReportDetails()" />
       </div>
       <div class="frow">
         <label for="signoff">Sign off</label>
-        <input type="text" id="signoff" value="Mohit" oninput="build()" />
+        <input type="text" id="signoff" value="Mohit" oninput="build();saveReportDetails()" />
       </div>
       <div class="frow-divider"></div>
       <div class="frow">
         <label for="toEmail">To (email)</label>
-        <input type="email" id="toEmail" value="shishupalsingh1137@gmail.com" placeholder="to@email.com" />
+        <input type="email" id="toEmail" value="shishupalsingh1137@gmail.com" placeholder="to@email.com" oninput="saveReportDetails()" />
       </div>
       <div class="frow">
         <label for="ccEmail">CC (email)</label>
-        <input type="email" id="ccEmail" value="shishupalsingh9980@gmail.com" placeholder="cc@email.com" />
+        <input type="email" id="ccEmail" value="shishupalsingh9980@gmail.com" placeholder="cc@email.com" oninput="saveReportDetails()" />
       </div>
     </div>
 

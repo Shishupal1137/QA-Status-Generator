@@ -2,6 +2,240 @@
 //   QA STATUS GENERATOR — script.js
 // =============================================
 
+// ---------- Firebase Config ----------
+// ⚠️  Replace the values below with YOUR Firebase project config
+// ⚠️  Follow SETUP_GUIDE.md for step-by-step instructions
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCdnt4Yv2xDIUaIccCkNQEtW2cZl2Xv7UE",
+  authDomain:        "orion-qa-generator.firebaseapp.com",
+  databaseURL:       "https://orion-qa-generator-default-rtdb.firebaseio.com",
+  projectId:         "orion-qa-generator",
+  storageBucket:     "orion-qa-generator.firebasestorage.app",
+  messagingSenderId: "700142321129",
+  appId:             "1:700142321129:web:835c19f5964e270f561f78"
+};
+
+let db             = null;
+let tasksRef       = null;
+let reportRef      = null;   // report details (date, recipient, signoff, to, cc)
+let savedMailsRef  = null;   // lead's saved mails
+let fbListener     = null;   // tasks listener
+let reportListener = null;   // report details listener
+
+function initFirebase() {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db            = firebase.database();
+    tasksRef      = db.ref('qa-daily-tasks');
+    reportRef     = db.ref('qa-report-details');
+    savedMailsRef = db.ref('qa-saved-mails');
+    console.log('[Firebase] connected ✓');
+  } catch (e) {
+    console.warn('[Firebase] not configured — localStorage fallback active:', e.message);
+    db = null; tasksRef = null; reportRef = null; savedMailsRef = null;
+  }
+}
+
+// ── Write tasks to Firebase ──
+function saveTasksToStorage() {
+  if (db && tasksRef) {
+    tasksRef.set(tasks.length ? tasks : null)
+      .catch(e => console.error('[Firebase] tasks write error:', e));
+  } else {
+    try { localStorage.setItem('qa-daily-tasks', JSON.stringify(tasks)); } catch(e) {}
+  }
+}
+
+// ── Save/load report details (date, recipient, signoff, to, cc) ──
+function saveReportDetails() {
+  const details = {
+    date:      document.getElementById('date').value,
+    recipient: document.getElementById('recipient').value,
+    signoff:   document.getElementById('signoff').value,
+    toEmail:   document.getElementById('toEmail').value,
+    ccEmail:   document.getElementById('ccEmail').value,
+  };
+  // Always save to localStorage as instant backup
+  try { localStorage.setItem('qa-report-details', JSON.stringify(details)); } catch(e) {}
+  // Also save to Firebase for cross-device sync
+  if (db && reportRef) {
+    reportRef.set(details).catch(err => {
+      console.warn('[Firebase] saveReportDetails error — check rules:', err.code);
+    });
+  }
+}
+
+function startReportDetailsListener() {
+  if (reportListener && reportRef) { reportRef.off('value', reportListener); reportListener = null; }
+
+  const applyDetails = d => {
+    if (!d) return;
+    if (d.date)      document.getElementById('date').value      = d.date;
+    if (d.recipient) document.getElementById('recipient').value = d.recipient;
+    if (d.signoff)   document.getElementById('signoff').value   = d.signoff;
+    if (d.toEmail)   document.getElementById('toEmail').value   = d.toEmail;
+    if (d.ccEmail)   document.getElementById('ccEmail').value   = d.ccEmail;
+    build();
+  };
+
+  if (db && reportRef) {
+    reportListener = reportRef.on('value',
+      snapshot => applyDetails(snapshot.val()),
+      err => {
+        console.warn('[Firebase] reportDetails permission denied — check rules:', err.code);
+        // localStorage fallback
+        try { applyDetails(JSON.parse(localStorage.getItem('qa-report-details') || 'null')); } catch(e) {}
+      }
+    );
+  } else {
+    try { applyDetails(JSON.parse(localStorage.getItem('qa-report-details') || 'null')); } catch(e) {}
+  }
+}
+
+function stopReportDetailsListener() {
+  if (reportRef && reportListener) { reportRef.off('value', reportListener); reportListener = null; }
+}
+
+// ── Start real-time tasks listener ──
+function startTasksListener(onUpdate) {
+  if (tasksRef && fbListener) { tasksRef.off('value', fbListener); fbListener = null; }
+
+  if (db && tasksRef) {
+    fbListener = tasksRef.on('value', snapshot => {
+      const val = snapshot.val();
+      tasks = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+      onUpdate();
+    }, err => console.error('[Firebase] listener error:', err));
+  } else {
+    try {
+      const raw = localStorage.getItem('qa-daily-tasks');
+      tasks = raw ? JSON.parse(raw) : [];
+    } catch(e) { tasks = []; }
+    onUpdate();
+  }
+}
+
+// ── Stop all listeners ──
+function stopAllListeners() {
+  if (tasksRef  && fbListener)     { tasksRef.off('value', fbListener);     fbListener     = null; }
+  if (reportRef && reportListener) { reportRef.off('value', reportListener); reportListener = null; }
+}
+
+// ── Clear all tasks from Firebase ──
+function clearTasksFromStorage() {
+  tasks = [];
+  if (db && tasksRef) {
+    tasksRef.remove().catch(e => console.error('[Firebase] clear error:', e));
+  } else {
+    try { localStorage.removeItem('qa-daily-tasks'); } catch(e) {}
+  }
+}
+
+// ── Cloud saved mails (Lead only) ──
+function getSavedMails(callback) {
+  if (db && savedMailsRef) {
+    let settled = false;
+    const fallback = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.warn('[Firebase] getSavedMails timed out — using localStorage');
+      try { callback(JSON.parse(localStorage.getItem('qa-saved-mails') || '[]')); }
+      catch(e) { callback([]); }
+    }, 6000);
+
+    savedMailsRef.once('value',
+      snapshot => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallback);
+        const val = snapshot.val();
+        const arr = val ? Object.values(val).sort((a, b) => b.id - a.id) : [];
+        callback(arr);
+      },
+      err => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallback);
+        console.warn('[Firebase] getSavedMails permission denied — check rules. Error:', err.code);
+        try { callback(JSON.parse(localStorage.getItem('qa-saved-mails') || '[]')); }
+        catch(e) { callback([]); }
+      }
+    );
+  } else {
+    try { callback(JSON.parse(localStorage.getItem('qa-saved-mails') || '[]')); }
+    catch(e) { callback([]); }
+  }
+}
+
+function saveMailToCloud(entry) {
+  if (db && savedMailsRef) {
+    savedMailsRef.child(String(entry.id)).set(entry)
+      .then(() => {
+        // Enforce max 7
+        savedMailsRef.once('value', snap => {
+          const val = snap.val();
+          if (!val) return;
+          const keys = Object.keys(val).sort((a, b) => Number(a) - Number(b));
+          if (keys.length > 7) keys.slice(0, keys.length - 7).forEach(k => savedMailsRef.child(k).remove());
+        });
+      })
+      .catch(err => {
+        console.warn('[Firebase] saveMailToCloud error — check rules:', err.code);
+        // localStorage fallback
+        try {
+          const saved = JSON.parse(localStorage.getItem('qa-saved-mails') || '[]');
+          saved.unshift(entry);
+          if (saved.length > 7) saved.length = 7;
+          localStorage.setItem('qa-saved-mails', JSON.stringify(saved));
+        } catch(e) {}
+      });
+  } else {
+    try {
+      const saved = JSON.parse(localStorage.getItem('qa-saved-mails') || '[]');
+      saved.unshift(entry);
+      if (saved.length > 7) saved.length = 7;
+      localStorage.setItem('qa-saved-mails', JSON.stringify(saved));
+    } catch(e) {}
+  }
+}
+
+function deleteMailFromCloud(id, callback) {
+  if (db && savedMailsRef) {
+    savedMailsRef.child(String(id)).remove()
+      .then(callback)
+      .catch(err => {
+        console.warn('[Firebase] deleteMailFromCloud error:', err.code);
+        callback();
+      });
+  } else {
+    try {
+      const saved = JSON.parse(localStorage.getItem('qa-saved-mails') || '[]').filter(m => m.id !== id);
+      localStorage.setItem('qa-saved-mails', JSON.stringify(saved));
+    } catch(e) {}
+    callback();
+  }
+}
+
+// ---------- Shared tasks notification ----------
+function showSharedTasksToast(count) {
+  const t = document.getElementById('sharedToast');
+  if (!t) return;
+  document.getElementById('sharedToastCount').textContent =
+    count + ' task' + (count > 1 ? 's' : '') + ' already added by other members';
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 6000);
+}
+
+// ── Show a small sync indicator when data arrives from another device ──
+function showSyncPulse() {
+  const el = document.getElementById('syncPulse');
+  if (!el) return;
+  el.classList.add('pulse-on');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('pulse-on'), 1800);
+}
+
 // ---------- Data ----------
 
 const MEMBERS = ['Ajay', 'Keshav', 'Gourav', 'Shubhi', 'Subhani', 'Mohit', 'Yadav'];
@@ -113,34 +347,6 @@ function toggleAssignee(name) {
 
 // ---------- Add task ----------
 
-// ---------- Shared tasks notification ----------
-function showSharedTasksToast(count) {
-  const t = document.getElementById('sharedToast');
-  if (!t) return;
-  document.getElementById('sharedToastCount').textContent =
-    count + ' task' + (count > 1 ? 's' : '') + ' already added by other members';
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 5000);
-}
-
-// ---------- Task persistence ----------
-
-const TASKS_KEY = 'qa-daily-tasks';
-
-function saveTasksToStorage() {
-  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch(e) {}
-}
-
-function loadTasksFromStorage() {
-  try {
-    const raw = localStorage.getItem(TASKS_KEY);
-    if (raw) tasks = JSON.parse(raw);
-  } catch(e) { tasks = []; }
-}
-
-// ---------- Add task ----------
-
 function addTask() {
   const ta   = document.getElementById('tinput');
   const val  = ta.value.trim();
@@ -175,8 +381,18 @@ function addTask() {
 // ---------- Remove task ----------
 
 function removeTask(index) {
+  const task = tasks[index];
+  if (!task) return;
+
+  // Only lead can remove anyone's task
+  // Team members can only remove tasks they are assigned to
+  if (!isLead && !task.members.includes(currentUser)) {
+    alert('You can only remove tasks assigned to you.');
+    return;
+  }
+
   tasks.splice(index, 1);
-  saveTasksToStorage(); // ← persist after removal
+  saveTasksToStorage();
   renderTasks();
   build();
 }
@@ -229,13 +445,16 @@ function renderTasks() {
       return `<div class="ttext-row"><div class="tbullet"></div><div class="ttext">${html}</div></div>`;
     }).join('');
 
+    // Show Remove button only if: lead (can remove any) OR task belongs to current user
+    const canRemove = isLead || t.members.includes(currentUser);
+
     return `
       <div class="tcard">
         <div class="tbody">
           <div class="towner">${ownerHtml}</div>
           ${bulletsHtml}
         </div>
-        <button class="tdel" onclick="removeTask(${i})">Remove</button>
+        ${canRemove ? `<button class="tdel" onclick="removeTask(${i})">Remove</button>` : ''}
       </div>`;
   }).join('');
 
@@ -949,8 +1168,10 @@ function hideClearModal() {
 function confirmClear() {
   selectedMembers.clear();
   assignees.clear();
-  tasks = [];
-  try { localStorage.removeItem(TASKS_KEY); } catch(e) {} // clear shared tasks
+  clearTasksFromStorage();
+  // Clear report details from cloud too
+  if (db && reportRef) reportRef.remove().catch(() => {});
+  try { localStorage.removeItem('qa-report-details'); } catch(e) {}
 
   document.getElementById('date').value       = '';
   document.getElementById('recipient').value  = 'Jenny';
@@ -1002,6 +1223,9 @@ function attemptLogin() {
   currentUser = name;
   isLead      = (name === LEAD_NAME);
 
+  // Persist session so page refresh keeps the user logged in
+  try { sessionStorage.setItem('qa-session', JSON.stringify({ user: currentUser, isLead })); } catch(e) {}
+
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display         = 'flex';
 
@@ -1022,25 +1246,27 @@ function attemptLogin() {
 
   applyPermissions();
 
-  // ── Load shared tasks saved by previous members ──
-  loadTasksFromStorage();
+  // ── Start real-time listeners ──
+  startReportDetailsListener();
 
-  // Restore all members mentioned in saved tasks into selectedMembers
-  tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
-  // Also add current user
-  selectedMembers.add(currentUser);
-  if (!isLead) assignees.add(currentUser);
+  let firstLoad = true;
+  startTasksListener(() => {
+    tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
+    selectedMembers.add(currentUser);
+    if (!isLead) assignees.add(currentUser);
 
-  // Notify if tasks from others already exist
-  const othersCount = tasks.filter(t => !t.members.includes(currentUser)).length;
-  if (othersCount > 0) {
-    setTimeout(() => showSharedTasksToast(othersCount), 400);
-  }
-
-  renderDayStrip();
-  renderMembers();
-  renderTasks();
-  build();
+    if (firstLoad) {
+      firstLoad = false;
+      const othersCount = tasks.filter(t => !t.members.includes(currentUser)).length;
+      if (othersCount > 0) setTimeout(() => showSharedTasksToast(othersCount), 400);
+      renderDayStrip();
+      renderMembers();
+    } else {
+      showSyncPulse();
+    }
+    renderTasks();
+    build();
+  });
 }
 
 // Toggle password visibility
@@ -1119,12 +1345,7 @@ function toggleCommonMail() {
   }
 }
 
-// ---------- Save / View saved mail (Lead only) ----------
-const MAX_SAVED = 7;
-
-function getSavedMails() {
-  try { return JSON.parse(localStorage.getItem('qa-saved-mails') || '[]'); } catch(e) { return []; }
-}
+// ---------- Save / View saved mail (Lead only — cloud) ----------
 
 function saveFinalMail() {
   const outbox    = document.getElementById('outbox');
@@ -1134,7 +1355,6 @@ function saveFinalMail() {
     alert('Please add tasks before saving the report.');
     return;
   }
-  const saved = getSavedMails();
   const entry = {
     id:        Date.now(),
     savedAt:   new Date().toLocaleString('en-GB'),
@@ -1143,9 +1363,7 @@ function saveFinalMail() {
     date:      document.getElementById('date').value,
     recipient: document.getElementById('recipient').value,
   };
-  saved.unshift(entry);
-  if (saved.length > MAX_SAVED) saved.length = MAX_SAVED;
-  try { localStorage.setItem('qa-saved-mails', JSON.stringify(saved)); } catch(e) {}
+  saveMailToCloud(entry);
   showSaveConfirm();
 }
 
@@ -1158,19 +1376,22 @@ function hideSaveConfirm() {
 }
 
 function viewSavedMails() {
-  const saved = getSavedMails();
   const modal = document.getElementById('viewSavedModal');
   const list  = document.getElementById('savedMailList');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:#888;font-size:13px">Loading...</div>';
+  modal.classList.add('open');
 
-  if (!saved.length) {
-    list.innerHTML = '<div style="text-align:center;padding:24px;color:#888;font-size:13px">No saved reports yet.</div>';
-  } else {
-    list.innerHTML = saved.map((m, i) => {
+  getSavedMails(saved => {
+    if (!saved.length) {
+      list.innerHTML = '<div style="text-align:center;padding:24px;color:#888;font-size:13px">No saved reports yet.</div>';
+      return;
+    }
+    list.innerHTML = saved.map(m => {
       const dateLabel = m.date
         ? new Date(m.date).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })
         : 'No date';
       return `
-        <div class="saved-mail-item" id="savedItem${m.id}">
+        <div class="saved-mail-item">
           <div class="saved-mail-meta">
             <span class="saved-mail-date">${dateLabel}</span>
             <span class="saved-mail-time">Saved: ${m.savedAt}</span>
@@ -1180,17 +1401,13 @@ function viewSavedMails() {
           <div class="saved-mail-actions">
             <button class="saved-del-btn" onclick="deleteSavedMail(${m.id})">Delete</button>
           </div>
-        </div>`;
-    }).join('<div class="saved-divider"></div>');
-  }
-
-  modal.classList.add('open');
+        </div><div class="saved-divider"></div>`;
+    }).join('');
+  });
 }
 
 function deleteSavedMail(id) {
-  let saved = getSavedMails().filter(m => m.id !== id);
-  try { localStorage.setItem('qa-saved-mails', JSON.stringify(saved)); } catch(e) {}
-  viewSavedMails(); // refresh
+  deleteMailFromCloud(id, () => viewSavedMails());
 }
 
 function hideViewSaved() {
@@ -1198,6 +1415,8 @@ function hideViewSaved() {
 }
 
 function logout() {
+  stopAllListeners();
+  try { sessionStorage.removeItem('qa-session'); } catch(e) {}
   currentUser        = null;
   isLead             = false;
   commonMailEnabled  = false;
@@ -1244,7 +1463,60 @@ function applyTheme(theme) {
 
 // ---------- Init ----------
 try {
-  const saved = localStorage.getItem('qa-theme');
-  if (saved) applyTheme(saved);
+  const savedTheme = localStorage.getItem('qa-theme');
+  if (savedTheme) applyTheme(savedTheme);
 } catch(e) {}
-showLogin();
+
+initFirebase();
+
+// Restore session if user was already logged in (page refresh)
+(function restoreSession() {
+  try {
+    const raw = sessionStorage.getItem('qa-session');
+    if (!raw) { showLogin(); return; }
+    const session = JSON.parse(raw);
+    if (!session || !session.user) { showLogin(); return; }
+
+    // Re-apply session without re-validating password
+    currentUser = session.user;
+    isLead      = session.isLead;
+
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display         = 'flex';
+    document.getElementById('loginBadge').textContent    = currentUser + (isLead ? ' (Lead)' : '');
+    document.getElementById('loginBadge').style.display  = 'flex';
+
+    selectedMembers.add(currentUser);
+    if (!isLead) assignees.add(currentUser);
+
+    applyPermissions();
+    startReportDetailsListener();
+
+    let firstLoad = true;
+    startTasksListener(() => {
+      tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
+      selectedMembers.add(currentUser);
+      if (!isLead && !assignees.size) assignees.add(currentUser);
+
+      if (firstLoad) {
+        firstLoad = false;
+        renderDayStrip();
+        renderMembers();
+      } else {
+        showSyncPulse();
+      }
+      renderTasks();
+      build();
+    });
+
+    if (!isLead) {
+      setTimeout(() => {
+        const grid = document.getElementById('mgrid');
+        if (grid && !commonMailEnabled) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
+      }, 100);
+    }
+  } catch(e) {
+    console.warn('Session restore failed:', e);
+    showLogin();
+  }
+})();
