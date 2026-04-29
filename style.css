@@ -53,6 +53,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
 }
 
 /* ---------- HERO ---------- */
@@ -1693,4 +1694,98 @@ body {
 
 [data-theme="dark"] #assignedTaskCard .tcard {
   background: #1a1930;
+}
+
+/* =============================================
+   SKELETON LOADER
+   ============================================= */
+.skeleton-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 40px;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.sk-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk-hero-logo {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: skshimmer 1.4s infinite;
+}
+
+.sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: skshimmer 1.4s infinite;
+}
+
+.sk-line.w30  { width: 30%; }
+.sk-line.w40  { width: 40%; }
+.sk-line.w50  { width: 50%; }
+.sk-line.w60  { width: 60%; }
+.sk-line.w70  { width: 70%; }
+.sk-line.w80  { width: 80%; }
+.sk-line.w90  { width: 90%; }
+
+.sk-chips { display: flex; gap: 8px; }
+.sk-chip {
+  width: 80px; height: 28px;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: skshimmer 1.4s infinite;
+}
+
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+@keyframes skshimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =============================================
+   LEAD PERMISSIONS PANEL
+   ============================================= */
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.perm-row:last-child { border-bottom: none; }
+
+.perm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.perm-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.perm-status {
+  font-size: 11px;
+  color: var(--text-tertiary);
 }

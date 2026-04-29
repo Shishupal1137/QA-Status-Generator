@@ -15,11 +15,23 @@ const FIREBASE_CONFIG = {
   appId:             "1:700142321129:web:835c19f5964e270f561f78"
 };
 
-let leadTasksRef   = null;
-let leadFbListener = null;
-let leadTasks      = [];      // { id, members[], text, assignedBy }
+let leadTasksRef    = null;
+let leadFbListener  = null;
+let permissionsRef  = null;  // lead-controlled feature toggles for team
+let permListener    = null;
+let leadTasks       = [];
 let giveTaskEnabled = false;
-let leadTaskAssignees = new Set(); // members selected in Give Task section
+let leadTaskAssignees = new Set();
+
+// Team permissions — lead controls which features team members can access
+let teamPerms = {
+  clearReport:   false,
+  saveMail:      false,
+  copyMail:      false,
+  viewSaved:     false,
+  openInMail:    false,
+  scheduleMail:  false,
+};
 
 // inside initFirebase — add leadTasksRef
 function initFirebase() {
@@ -30,6 +42,7 @@ function initFirebase() {
     reportRef     = db.ref('qa-report-details');
     savedMailsRef = db.ref('qa-saved-mails');
     leadTasksRef  = db.ref('qa-lead-tasks');
+    permissionsRef = db.ref('qa-team-permissions');
     console.log('[Firebase] connected ✓');
   } catch (e) {
     console.warn('[Firebase] not configured — localStorage fallback active:', e.message);
@@ -192,10 +205,11 @@ function renderAssignedTasks() {
   }).join('');
 }
 
-// ── Show lead task card for lead ──
 function applyLeadTaskUI() {
-  const giveCard = document.getElementById('giveTaskCard');
-  if (giveCard) giveCard.style.display = isLead ? 'block' : 'none';
+  const giveCard  = document.getElementById('giveTaskCard');
+  const permsCard = document.getElementById('leadPermsCard');
+  if (giveCard)  giveCard.style.display  = isLead ? 'block' : 'none';
+  if (permsCard) permsCard.style.display = isLead ? 'block' : 'none';
 }
 
 // ── Clear lead tasks on clear report ──
@@ -292,11 +306,11 @@ function startTasksListener(onUpdate) {
   }
 }
 
-// ── Stop all listeners including lead ──
 function stopAllListeners() {
-  if (tasksRef   && fbListener)      { tasksRef.off('value', fbListener);      fbListener     = null; }
-  if (reportRef  && reportListener)  { reportRef.off('value', reportListener);  reportListener = null; }
-  if (leadTasksRef && leadFbListener){ leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
+  if (tasksRef    && fbListener)      { tasksRef.off('value', fbListener);       fbListener     = null; }
+  if (reportRef   && reportListener)  { reportRef.off('value', reportListener);  reportListener = null; }
+  if (leadTasksRef && leadFbListener) { leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
+  if (permissionsRef && permListener) { permissionsRef.off('value', permListener); permListener   = null; }
 }
 
 // ── Clear all tasks from Firebase ──
@@ -392,6 +406,15 @@ function deleteMailFromCloud(id, callback) {
     } catch(e) {}
     callback();
   }
+}
+
+function showSkeleton() {
+  const el = document.getElementById('skeletonOverlay');
+  if (el) el.style.display = 'block';
+}
+function hideSkeleton() {
+  const el = document.getElementById('skeletonOverlay');
+  if (el) { el.style.opacity = '0'; setTimeout(() => { el.style.display = 'none'; el.style.opacity = '1'; }, 350); }
 }
 
 // ---------- Shared tasks notification ----------
@@ -1347,7 +1370,7 @@ function confirmClear() {
   selectedMembers.clear();
   assignees.clear();
   clearTasksFromStorage();
-  // Clear report details from cloud too
+  clearLeadTasks();
   if (db && reportRef) reportRef.remove().catch(() => {});
   try { localStorage.removeItem('qa-report-details'); } catch(e) {}
 
@@ -1366,6 +1389,68 @@ function confirmClear() {
   renderMembers();
   renderTasks();
   build();
+}
+
+// ---------- Team Permissions (lead controls, team sees) ----------
+
+function saveTeamPerms() {
+  if (db && permissionsRef) {
+    permissionsRef.set(teamPerms).catch(e => console.warn('[Firebase] perms write:', e.code));
+  } else {
+    try { localStorage.setItem('qa-team-perms', JSON.stringify(teamPerms)); } catch(e) {}
+  }
+}
+
+function startPermissionsListener() {
+  if (permissionsRef && permListener) { permissionsRef.off('value', permListener); permListener = null; }
+
+  const apply = val => {
+    if (val) Object.assign(teamPerms, val);
+    if (!isLead) applyPermissions(); // re-apply for team members
+    if (isLead)  renderLeadPermsPanel(); // re-render lead toggles
+  };
+
+  if (db && permissionsRef) {
+    permListener = permissionsRef.on('value',
+      s  => apply(s.val()),
+      () => { try { apply(JSON.parse(localStorage.getItem('qa-team-perms') || 'null')); } catch(e) {} }
+    );
+  } else {
+    try { apply(JSON.parse(localStorage.getItem('qa-team-perms') || 'null')); } catch(e) {}
+  }
+}
+
+// Lead toggles each feature for team
+function toggleTeamPerm(key) {
+  teamPerms[key] = !teamPerms[key];
+  saveTeamPerms();
+  renderLeadPermsPanel();
+}
+
+// Render lead permission panel toggles (real-time)
+function renderLeadPermsPanel() {
+  const panel = document.getElementById('leadPermsPanel');
+  if (!panel) return;
+
+  const PERMS = [
+    { key: 'clearReport',  label: 'Clear Report for Team' },
+    { key: 'saveMail',     label: 'Save Final Mail for Team' },
+    { key: 'copyMail',     label: 'Copy Mail for Team' },
+    { key: 'viewSaved',    label: 'View Saved Mail for Team' },
+    { key: 'openInMail',   label: 'Open in Mail for Team' },
+    { key: 'scheduleMail', label: 'Schedule Mail for Team' },
+  ];
+
+  panel.innerHTML = PERMS.map(p => `
+    <div class="perm-row">
+      <div class="perm-info">
+        <span class="perm-label">${p.label}</span>
+        <span class="perm-status">${teamPerms[p.key] ? '✓ Enabled for team' : 'Lead only'}</span>
+      </div>
+      <button class="toggle-btn ${teamPerms[p.key] ? 'toggle-on' : ''}" onclick="toggleTeamPerm('${p.key}')">
+        <span class="toggle-knob"></span>
+      </button>
+    </div>`).join('');
 }
 
 // ---------- Login & Permissions ----------
@@ -1424,14 +1509,14 @@ function attemptLogin() {
 
   applyPermissions();
   applyLeadTaskUI();
+  if (isLead) renderLeadPermsPanel();
 
-  // ── Start real-time listeners ──
   startReportDetailsListener();
-  startLeadTasksListener(() => {
-    renderAssignedTasks();
-  });
+  startPermissionsListener();
+  startLeadTasksListener(() => { renderAssignedTasks(); });
 
   let firstLoad = true;
+  showSkeleton();
   startTasksListener(() => {
     tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
     selectedMembers.add(currentUser);
@@ -1439,6 +1524,7 @@ function attemptLogin() {
 
     if (firstLoad) {
       firstLoad = false;
+      hideSkeleton();
       const othersCount = tasks.filter(t => !t.members.includes(currentUser)).length;
       if (othersCount > 0) setTimeout(() => showSharedTasksToast(othersCount), 400);
       renderDayStrip();
@@ -1458,32 +1544,36 @@ function togglePassVis() {
 }
 
 function applyPermissions() {
-  if (isLead) return; // Lead sees everything
+  if (isLead) return;
 
-  // Hide lead-only buttons
-  document.querySelectorAll('.cpybtn, .mailbtn, .schbtn, .clearbtn, .savebtn, .viewbtn').forEach(el => {
-    el.style.display = 'none';
-  });
-  // Disable report detail fields
+  // Each button shown/hidden based on lead's teamPerms toggles
+  const show = (sel, allowed) =>
+    document.querySelectorAll(sel).forEach(el => el.style.display = allowed ? '' : 'none');
+
+  show('.clearbtn', teamPerms.clearReport);
+  show('.savebtn',  teamPerms.saveMail);
+  show('.cpybtn',   teamPerms.copyMail);
+  show('.viewbtn',  teamPerms.viewSaved);
+  show('.mailbtn',  teamPerms.openInMail);
+  show('.schbtn',   teamPerms.scheduleMail);
+
+  const anyMailVisible = teamPerms.saveMail || teamPerms.copyMail ||
+                         teamPerms.viewSaved || teamPerms.openInMail || teamPerms.scheduleMail;
+  const outActions = document.querySelector('.out-actions');
+  if (outActions) outActions.style.display = anyMailVisible ? '' : 'none';
+  const note = document.getElementById('leadOnlyNote');
+  if (note) note.style.display = anyMailVisible ? 'none' : 'block';
+
   ['date','recipient','signoff','toEmail','ccEmail'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.disabled = true; el.style.opacity = '0.55'; }
   });
-  // Hide out-actions row
-  const outActions = document.querySelector('.out-actions');
-  if (outActions) outActions.style.display = 'none';
-
-  // Show read-only note — use static element (never duplicate)
-  const note = document.getElementById('leadOnlyNote');
-  if (note) note.style.display = 'block';
-
-  // Show common mail toggle for team members
   const toggleRow = document.getElementById('commonToggleRow');
   if (toggleRow) toggleRow.style.display = 'flex';
 }
 
 function restorePermissions() {
-  document.querySelectorAll('.cpybtn, .mailbtn, .schbtn, .clearbtn, .savebtn, .viewbtn').forEach(el => el.style.display = '');
+  document.querySelectorAll('.cpybtn,.mailbtn,.schbtn,.clearbtn,.savebtn,.viewbtn').forEach(el => el.style.display = '');
   ['date','recipient','signoff','toEmail','ccEmail'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.disabled = false; el.style.opacity = ''; }
@@ -1494,7 +1584,6 @@ function restorePermissions() {
   if (note) note.style.display = 'none';
   const toggleRow = document.getElementById('commonToggleRow');
   if (toggleRow) toggleRow.style.display = 'none';
-  // Re-lock member grid if needed
   const grid = document.getElementById('mgrid');
   if (grid) { grid.style.pointerEvents = ''; grid.style.opacity = ''; }
 }
@@ -1601,6 +1690,12 @@ function logout() {
   try { sessionStorage.removeItem('qa-session'); } catch(e) {}
   currentUser        = null;
   isLead             = false;
+  giveTaskEnabled   = false;
+  leadTaskAssignees.clear();
+  const giveBtn = document.getElementById('giveTaskToggleBtn');
+  if (giveBtn) giveBtn.classList.remove('toggle-on');
+  const giveBody = document.getElementById('giveTaskBody');
+  if (giveBody) giveBody.style.display = 'none';
   commonMailEnabled  = false;
   selectedMembers.clear();
   assignees.clear();
@@ -1673,10 +1768,13 @@ initFirebase();
 
     applyPermissions();
     applyLeadTaskUI();
+    if (isLead) renderLeadPermsPanel();
     startReportDetailsListener();
+    startPermissionsListener();
     startLeadTasksListener(() => { renderAssignedTasks(); });
 
     let firstLoad = true;
+    showSkeleton();
     startTasksListener(() => {
       tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
       selectedMembers.add(currentUser);
@@ -1684,6 +1782,7 @@ initFirebase();
 
       if (firstLoad) {
         firstLoad = false;
+        hideSkeleton();
         renderDayStrip();
         renderMembers();
       } else {

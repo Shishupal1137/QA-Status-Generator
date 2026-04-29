@@ -144,6 +144,13 @@
   </div>
 
   <div class="app" id="app" style="display:none">
+    <!-- SKELETON LOADER -->
+    <div class="skeleton-overlay" id="skeletonOverlay">
+      <div class="sk-card"><div class="sk-hero-logo"></div><div class="sk-lines"><div class="sk-line w60"></div><div class="sk-line w40"></div></div></div>
+      <div class="sk-card"><div class="sk-line w30"></div><div class="sk-line w80"></div><div class="sk-line w80"></div><div class="sk-line w50"></div></div>
+      <div class="sk-card"><div class="sk-line w30"></div><div class="sk-chips"><div class="sk-chip"></div><div class="sk-chip"></div><div class="sk-chip"></div><div class="sk-chip"></div></div></div>
+      <div class="sk-card"><div class="sk-line w30"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div>
+    </div>
 
     <!-- HERO HEADER -->
     <div class="hero">
@@ -251,6 +258,16 @@
         <span id="mbadge" class="badge" style="display:none">0 selected</span>
       </div>
       <div class="mems" id="mgrid"></div>
+    </div>
+
+    <!-- LEAD PERMISSIONS PANEL (Lead only) -->
+    <div class="card" id="leadPermsCard" style="display:none">
+      <div class="slabel">
+        <div class="sdot" style="background:#185FA5"></div>
+        Team permissions
+        <span style="font-size:10px;color:var(--text-secondary);font-weight:400;margin-left:4px;text-transform:none;letter-spacing:0">— control what team members can access</span>
+      </div>
+      <div id="leadPermsPanel"></div>
     </div>
 
     <!-- GIVE TEAM TASK (Lead only) -->
