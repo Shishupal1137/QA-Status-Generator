@@ -260,6 +260,30 @@
       <div class="mems" id="mgrid"></div>
     </div>
 
+    <!-- ALTERNATE LEAD CARD (Mohit only) -->
+    <div class="card" id="altLeadCard" style="display:none">
+      <div class="slabel">
+        <div class="sdot" style="background:#993C1D"></div>
+        Alternate Lead
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <span class="give-task-sub">Assign lead access to a team member</span>
+          <button id="altLeadToggleBtn" class="toggle-btn" onclick="toggleAltLeadSection()" title="Enable/disable alternate lead">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+      <div id="altLeadBody" style="display:none">
+        <div class="give-task-who" style="border-color:#f4b8a0">
+          <span class="give-task-label" style="color:#993C1D">Select acting lead(s):</span>
+          <div class="give-task-chips" id="altLeadPicker"></div>
+        </div>
+        <div id="altLeadStatus" style="font-size:12px;margin-top:8px;font-weight:500;color:var(--text-tertiary)">No alternate leads selected</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-style:italic">
+          ⓘ Selected members will have full lead access when they log in. Only you can manage this setting.
+        </div>
+      </div>
+    </div>
+
     <!-- LEAD PERMISSIONS PANEL (Lead only) -->
     <div class="card" id="leadPermsCard" style="display:none">
       <div class="slabel">

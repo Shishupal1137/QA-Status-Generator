@@ -15,22 +15,24 @@ const FIREBASE_CONFIG = {
   appId:             "1:700142321129:web:835c19f5964e270f561f78"
 };
 
-let leadTasksRef    = null;
-let leadFbListener  = null;
-let permissionsRef  = null;  // lead-controlled feature toggles for team
-let permListener    = null;
-let leadTasks       = [];
-let giveTaskEnabled = false;
+let leadTasksRef     = null;
+let leadFbListener   = null;
+let permissionsRef   = null;
+let permListener     = null;
+let altLeadsRef      = null;   // alternate leads set by Mohit
+let altLeadTasks     = [];   // unused placeholder
+let leadTasks        = [];
+let giveTaskEnabled  = false;
 let leadTaskAssignees = new Set();
+let alternateLeads   = new Set(); // names of current alternate leads
 
-// Team permissions — lead controls which features team members can access
 let teamPerms = {
-  clearReport:   false,
-  saveMail:      false,
-  copyMail:      false,
-  viewSaved:     false,
-  openInMail:    false,
-  scheduleMail:  false,
+  clearReport:  false,
+  saveMail:     false,
+  copyMail:     false,
+  viewSaved:    false,
+  openInMail:   false,
+  scheduleMail: false,
 };
 
 // inside initFirebase — add leadTasksRef
@@ -41,8 +43,9 @@ function initFirebase() {
     tasksRef      = db.ref('qa-daily-tasks');
     reportRef     = db.ref('qa-report-details');
     savedMailsRef = db.ref('qa-saved-mails');
-    leadTasksRef  = db.ref('qa-lead-tasks');
+    leadTasksRef   = db.ref('qa-lead-tasks');
     permissionsRef = db.ref('qa-team-permissions');
+    altLeadsRef    = db.ref('qa-alternate-leads');
     console.log('[Firebase] connected ✓');
   } catch (e) {
     console.warn('[Firebase] not configured — localStorage fallback active:', e.message);
@@ -220,7 +223,84 @@ function clearLeadTasks() {
   renderAssignedTasks();
 }
 
-// ── Stop all listeners including lead ──
+// Toggle visibility of alt lead picker section
+function toggleAltLeadSection() {
+  const btn  = document.getElementById('altLeadToggleBtn');
+  const body = document.getElementById('altLeadBody');
+  const isOn = btn.classList.toggle('toggle-on');
+  body.style.display = isOn ? 'block' : 'none';
+  if (isOn) renderAltLeadPicker();
+  if (!isOn) {
+    // Clear all alternate leads when disabled
+    alternateLeads.clear();
+    saveAlternateLeads();
+    renderAltLeadPicker();
+  }
+}
+
+// ── Alternate leads — save/load/listen ──
+function saveAlternateLeads() {
+  const arr = [...alternateLeads];
+  if (db && altLeadsRef) {
+    altLeadsRef.set(arr.length ? arr : null)
+      .catch(e => console.warn('[Firebase] altLeads write:', e.code));
+  } else {
+    try { localStorage.setItem('qa-alt-leads', JSON.stringify(arr)); } catch(e) {}
+  }
+}
+
+/** Returns current alternate leads from Firebase/localStorage as a Promise<Set> */
+function fetchAlternateLeads() {
+  return new Promise(resolve => {
+    if (db && altLeadsRef) {
+      altLeadsRef.once('value',
+        s  => resolve(new Set(s.val() || [])),
+        () => { try { resolve(new Set(JSON.parse(localStorage.getItem('qa-alt-leads') || '[]'))); } catch(e) { resolve(new Set()); } }
+      );
+    } else {
+      try { resolve(new Set(JSON.parse(localStorage.getItem('qa-alt-leads') || '[]'))); }
+      catch(e) { resolve(new Set()); }
+    }
+  });
+}
+
+// Toggle a member as alternate lead (Mohit only)
+function toggleAltLead(name) {
+  if (alternateLeads.has(name)) alternateLeads.delete(name);
+  else alternateLeads.add(name);
+  saveAlternateLeads();
+  renderAltLeadPicker();
+  renderLeadPermsPanel(); // refresh status label
+}
+
+// Render the alternate lead member picker inside the toggle section
+function renderAltLeadPicker() {
+  const wrap = document.getElementById('altLeadPicker');
+  if (!wrap) return;
+
+  const names = MEMBERS.filter(n => n !== LEAD_NAME); // exclude Mohit himself
+  wrap.innerHTML = names.map((name, i) => {
+    const realIdx = MEMBERS.indexOf(name);
+    const col     = COLORS[realIdx];
+    const sel     = alternateLeads.has(name);
+    return `
+      <div class="give-chip ${sel ? 'give-chip-sel' : ''}"
+           style="${sel ? `background:${col};border-color:${col};color:white` : ''}"
+           onclick="toggleAltLead('${name}')">
+        <div class="tav" style="background:${sel ? 'rgba(255,255,255,0.3)' : col};color:white;width:18px;height:18px;font-size:8px">${initials(name)}</div>
+        ${name}
+      </div>`;
+  }).join('');
+
+  // Show current alt leads status
+  const statusEl = document.getElementById('altLeadStatus');
+  if (statusEl) {
+    statusEl.textContent = alternateLeads.size
+      ? 'Acting lead today: ' + [...alternateLeads].join(', ')
+      : 'No alternate leads selected';
+    statusEl.style.color = alternateLeads.size ? '#1D9E75' : 'var(--text-tertiary)';
+  }
+}
 let tasksRef       = null;
 let reportRef      = null;   // report details (date, recipient, signoff, to, cc)
 let savedMailsRef  = null;   // lead's saved mails
@@ -1483,24 +1563,40 @@ function attemptLogin() {
     return;
   }
 
-  currentUser = name;
-  isLead      = (name === LEAD_NAME);
+  // Disable button while checking
+  const btn = document.querySelector('.login-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
 
-  // Persist session so page refresh keeps the user logged in
-  try { sessionStorage.setItem('qa-session', JSON.stringify({ user: currentUser, isLead })); } catch(e) {}
+  // Check if this member is an alternate lead (fetch from Firebase first)
+  fetchAlternateLeads().then(altSet => {
+    alternateLeads = altSet;
+    const isAltLead = altSet.has(name);
+    completeLogin(name, name === LEAD_NAME, isAltLead);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Sign In'; }
+  });
+
+// Called after role is determined (including alternate lead check)
+function completeLogin(name, isMainLead, isAltLead) {
+  currentUser = name;
+  isLead      = isMainLead || isAltLead;
+  const isMainLeadUser = isMainLead; // only Mohit gets altLead toggle
+
+  // Persist session
+  try { sessionStorage.setItem('qa-session', JSON.stringify({ user: currentUser, isLead, isMainLeadUser })); } catch(e) {}
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display         = 'flex';
 
-  // Show logged-in user badge
-  document.getElementById('loginBadge').textContent = currentUser + (isLead ? ' (Lead)' : '');
+  // Badge label
+  let badgeLabel = currentUser;
+  if (isMainLead)     badgeLabel += ' (Lead)';
+  else if (isAltLead) badgeLabel += ' (Acting Lead)';
+  document.getElementById('loginBadge').textContent = badgeLabel;
   document.getElementById('loginBadge').style.display = 'flex';
 
-  // Pre-select the member who logged in
   selectedMembers.add(currentUser);
   if (!isLead) {
     assignees.add(currentUser);
-    // Lock member grid — team members can't change who's selected
     setTimeout(() => {
       const grid = document.getElementById('mgrid');
       if (grid) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
@@ -1509,7 +1605,13 @@ function attemptLogin() {
 
   applyPermissions();
   applyLeadTaskUI();
-  if (isLead) renderLeadPermsPanel();
+  // Alternate lead toggle only shown to main lead (Mohit)
+  const altCard = document.getElementById('altLeadCard');
+  if (altCard) altCard.style.display = isMainLeadUser ? 'block' : 'none';
+  if (isLead) {
+    renderLeadPermsPanel();
+    if (isMainLeadUser) renderAltLeadPicker();
+  }
 
   startReportDetailsListener();
   startPermissionsListener();
@@ -1535,6 +1637,7 @@ function attemptLogin() {
     renderTasks();
     build();
   });
+}
 }
 
 // Toggle password visibility
@@ -1754,50 +1857,62 @@ initFirebase();
     const session = JSON.parse(raw);
     if (!session || !session.user) { showLogin(); return; }
 
-    // Re-apply session without re-validating password
-    currentUser = session.user;
-    isLead      = session.isLead;
+    // Fetch alternate leads then restore
+    fetchAlternateLeads().then(altSet => {
+      alternateLeads = altSet;
+      const isMainLeadUser = (session.user === LEAD_NAME);
+      const isAltLead      = altSet.has(session.user) && !isMainLeadUser;
 
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('app').style.display         = 'flex';
-    document.getElementById('loginBadge').textContent    = currentUser + (isLead ? ' (Lead)' : '');
-    document.getElementById('loginBadge').style.display  = 'flex';
+      currentUser = session.user;
+      isLead      = isMainLeadUser || isAltLead;
 
-    selectedMembers.add(currentUser);
-    if (!isLead) assignees.add(currentUser);
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display         = 'flex';
 
-    applyPermissions();
-    applyLeadTaskUI();
-    if (isLead) renderLeadPermsPanel();
-    startReportDetailsListener();
-    startPermissionsListener();
-    startLeadTasksListener(() => { renderAssignedTasks(); });
+      let badgeLabel = currentUser;
+      if (isMainLeadUser) badgeLabel += ' (Lead)';
+      else if (isAltLead) badgeLabel += ' (Acting Lead)';
+      document.getElementById('loginBadge').textContent  = badgeLabel;
+      document.getElementById('loginBadge').style.display = 'flex';
 
-    let firstLoad = true;
-    showSkeleton();
-    startTasksListener(() => {
-      tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
       selectedMembers.add(currentUser);
-      if (!isLead && !assignees.size) assignees.add(currentUser);
+      if (!isLead) assignees.add(currentUser);
 
-      if (firstLoad) {
-        firstLoad = false;
-        hideSkeleton();
-        renderDayStrip();
-        renderMembers();
-      } else {
-        showSyncPulse();
+      applyPermissions();
+      applyLeadTaskUI();
+      const altCard = document.getElementById('altLeadCard');
+      if (altCard) altCard.style.display = isMainLeadUser ? 'block' : 'none';
+      if (isLead) {
+        renderLeadPermsPanel();
+        if (isMainLeadUser) renderAltLeadPicker();
       }
-      renderTasks();
-      build();
-    });
+      startReportDetailsListener();
+      startPermissionsListener();
+      startLeadTasksListener(() => { renderAssignedTasks(); });
 
-    if (!isLead) {
-      setTimeout(() => {
-        const grid = document.getElementById('mgrid');
-        if (grid && !commonMailEnabled) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
-      }, 100);
-    }
+      let firstLoad = true;
+      showSkeleton();
+      startTasksListener(() => {
+        tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
+        selectedMembers.add(currentUser);
+        if (!isLead && !assignees.size) assignees.add(currentUser);
+        if (firstLoad) {
+          firstLoad = false;
+          hideSkeleton();
+          renderDayStrip();
+          renderMembers();
+        } else { showSyncPulse(); }
+        renderTasks();
+        build();
+      });
+
+      if (!isLead) {
+        setTimeout(() => {
+          const grid = document.getElementById('mgrid');
+          if (grid && !commonMailEnabled) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
+        }, 100);
+      }
+    });
   } catch(e) {
     console.warn('Session restore failed:', e);
     showLogin();
