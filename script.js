@@ -490,11 +490,16 @@ function deleteMailFromCloud(id, callback) {
 
 function showSkeleton() {
   const el = document.getElementById('skeletonOverlay');
-  if (el) el.style.display = 'block';
+  if (!el) return;
+  el.style.opacity = '1';
+  el.style.display = 'block';
 }
+
 function hideSkeleton() {
   const el = document.getElementById('skeletonOverlay');
-  if (el) { el.style.opacity = '0'; setTimeout(() => { el.style.display = 'none'; el.style.opacity = '1'; }, 350); }
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(() => { el.style.display = 'none'; el.style.opacity = '1'; }, 350);
 }
 
 // ---------- Shared tasks notification ----------
@@ -1563,17 +1568,10 @@ function attemptLogin() {
     return;
   }
 
-  // Disable button while checking
-  const btn = document.querySelector('.login-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
-
-  // Check if this member is an alternate lead (fetch from Firebase first)
-  fetchAlternateLeads().then(altSet => {
-    alternateLeads = altSet;
-    const isAltLead = altSet.has(name);
-    completeLogin(name, name === LEAD_NAME, isAltLead);
-    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Sign In'; }
-  });
+  // Use cached alternateLeads (already loaded at page start) — no Firebase wait
+  const isAltLead = alternateLeads.has(name);
+  completeLogin(name, name === LEAD_NAME, isAltLead);
+}
 
 // Called after role is determined (including alternate lead check)
 function completeLogin(name, isMainLead, isAltLead) {
@@ -1637,7 +1635,6 @@ function completeLogin(name, isMainLead, isAltLead) {
     renderTasks();
     build();
   });
-}
 }
 
 // Toggle password visibility
@@ -1849,72 +1846,95 @@ try {
 
 initFirebase();
 
-// Restore session if user was already logged in (page refresh)
-(function restoreSession() {
+// ── Step 1: Show correct screen INSTANTLY from sessionStorage (no flash) ──
+(function instantScreenRestore() {
   try {
     const raw = sessionStorage.getItem('qa-session');
-    if (!raw) { showLogin(); return; }
+    if (!raw) {
+      // No session — show login right away
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('app').style.display         = 'none';
+      return;
+    }
     const session = JSON.parse(raw);
-    if (!session || !session.user) { showLogin(); return; }
-
-    // Fetch alternate leads then restore
-    fetchAlternateLeads().then(altSet => {
-      alternateLeads = altSet;
-      const isMainLeadUser = (session.user === LEAD_NAME);
-      const isAltLead      = altSet.has(session.user) && !isMainLeadUser;
-
-      currentUser = session.user;
-      isLead      = isMainLeadUser || isAltLead;
-
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('app').style.display         = 'flex';
-
-      let badgeLabel = currentUser;
-      if (isMainLeadUser) badgeLabel += ' (Lead)';
-      else if (isAltLead) badgeLabel += ' (Acting Lead)';
-      document.getElementById('loginBadge').textContent  = badgeLabel;
-      document.getElementById('loginBadge').style.display = 'flex';
-
-      selectedMembers.add(currentUser);
-      if (!isLead) assignees.add(currentUser);
-
-      applyPermissions();
-      applyLeadTaskUI();
-      const altCard = document.getElementById('altLeadCard');
-      if (altCard) altCard.style.display = isMainLeadUser ? 'block' : 'none';
-      if (isLead) {
-        renderLeadPermsPanel();
-        if (isMainLeadUser) renderAltLeadPicker();
-      }
-      startReportDetailsListener();
-      startPermissionsListener();
-      startLeadTasksListener(() => { renderAssignedTasks(); });
-
-      let firstLoad = true;
-      showSkeleton();
-      startTasksListener(() => {
-        tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
-        selectedMembers.add(currentUser);
-        if (!isLead && !assignees.size) assignees.add(currentUser);
-        if (firstLoad) {
-          firstLoad = false;
-          hideSkeleton();
-          renderDayStrip();
-          renderMembers();
-        } else { showSyncPulse(); }
-        renderTasks();
-        build();
-      });
-
-      if (!isLead) {
-        setTimeout(() => {
-          const grid = document.getElementById('mgrid');
-          if (grid && !commonMailEnabled) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
-        }, 100);
-      }
-    });
+    if (!session?.user) {
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('app').style.display         = 'none';
+      return;
+    }
+    // Has session — show app immediately, skeleton covers content while data loads
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display         = 'flex';
+    showSkeleton();
   } catch(e) {
-    console.warn('Session restore failed:', e);
-    showLogin();
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display         = 'none';
   }
 })();
+
+// ── Step 2: Load alternate leads from Firebase/cache (background, no blocking) ──
+// This populates `alternateLeads` so login is instant from now on
+fetchAlternateLeads().then(altSet => {
+  alternateLeads = altSet;
+
+  // ── Step 3: If session exists, complete the restore with now-known role ──
+  try {
+    const raw = sessionStorage.getItem('qa-session');
+    if (!raw) return; // already showing login, nothing to do
+    const session = JSON.parse(raw);
+    if (!session?.user) return;
+
+    const isMainLeadUser = (session.user === LEAD_NAME);
+    const isAltLead      = altSet.has(session.user) && !isMainLeadUser;
+
+    currentUser = session.user;
+    isLead      = isMainLeadUser || isAltLead;
+
+    let badgeLabel = currentUser;
+    if (isMainLeadUser) badgeLabel += ' (Lead)';
+    else if (isAltLead) badgeLabel += ' (Acting Lead)';
+    document.getElementById('loginBadge').textContent  = badgeLabel;
+    document.getElementById('loginBadge').style.display = 'flex';
+
+    selectedMembers.add(currentUser);
+    if (!isLead) assignees.add(currentUser);
+
+    applyPermissions();
+    applyLeadTaskUI();
+    const altCard = document.getElementById('altLeadCard');
+    if (altCard) altCard.style.display = isMainLeadUser ? 'block' : 'none';
+    if (isLead) {
+      renderLeadPermsPanel();
+      if (isMainLeadUser) renderAltLeadPicker();
+    }
+    startReportDetailsListener();
+    startPermissionsListener();
+    startLeadTasksListener(() => { renderAssignedTasks(); });
+
+    let firstLoad = true;
+    startTasksListener(() => {
+      tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
+      selectedMembers.add(currentUser);
+      if (!isLead && !assignees.size) assignees.add(currentUser);
+      if (firstLoad) {
+        firstLoad = false;
+        hideSkeleton();
+        renderDayStrip();
+        renderMembers();
+      } else { showSyncPulse(); }
+      renderTasks();
+      build();
+    });
+
+    if (!isLead) {
+      setTimeout(() => {
+        const grid = document.getElementById('mgrid');
+        if (grid && !commonMailEnabled) { grid.style.pointerEvents = 'none'; grid.style.opacity = '0.7'; }
+      }, 100);
+    }
+  } catch(e) {
+    console.warn('Session restore failed:', e);
+    hideSkeleton();
+    showLogin();
+  }
+});

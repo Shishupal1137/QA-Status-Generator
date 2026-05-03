@@ -1700,16 +1700,21 @@ body {
    SKELETON LOADER
    ============================================= */
 .skeleton-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 100;
   background: var(--bg);
+  overflow-y: auto;
+  transition: opacity 0.35s ease;
+}
+
+.sk-inner {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px 0 40px;
-  pointer-events: none;
-  transition: opacity 0.35s ease;
 }
 
 .sk-card {
@@ -1745,6 +1750,7 @@ body {
 .sk-line.w70  { width: 70%; }
 .sk-line.w80  { width: 80%; }
 .sk-line.w90  { width: 90%; }
+.sk-line.w95  { width: 95%; }
 
 .sk-chips { display: flex; gap: 8px; }
 .sk-chip {
