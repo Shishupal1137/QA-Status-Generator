@@ -387,10 +387,13 @@ function startTasksListener(onUpdate) {
 }
 
 function stopAllListeners() {
-  if (tasksRef    && fbListener)      { tasksRef.off('value', fbListener);       fbListener     = null; }
-  if (reportRef   && reportListener)  { reportRef.off('value', reportListener);  reportListener = null; }
-  if (leadTasksRef && leadFbListener) { leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
-  if (permissionsRef && permListener) { permissionsRef.off('value', permListener); permListener   = null; }
+  if (tasksRef    && fbListener)       { tasksRef.off('value', fbListener);        fbListener     = null; }
+  if (reportRef   && reportListener)   { reportRef.off('value', reportListener);   reportListener = null; }
+  if (leadTasksRef && leadFbListener)  { leadTasksRef.off('value', leadFbListener); leadFbListener = null; }
+  if (permissionsRef && permListener)  { permissionsRef.off('value', permListener); permListener   = null; }
+  if (shishupalBackupRef) {
+    shishupalBackupRef.off(); shishupalBackupRef = null;
+  }
 }
 
 // ── Clear all tasks from Firebase ──
@@ -524,21 +527,25 @@ function showSyncPulse() {
 
 // ---------- Data ----------
 
-const MEMBERS = ['Ajay', 'Keshav', 'Gourav', 'Shubhi', 'Subhani', 'Mohit', 'Yadav'];
+const MEMBERS = ['Ajay', 'Keshav', 'Gourav', 'Shubhi', 'Subhani', 'Mohit', 'Yadav', 'Shishupal'];
 
 const COLORS = [
-  '#1D9E75', // teal   — Ajay
-  '#185FA5', // blue   — Keshav
-  '#534AB7', // purple — Gourav
-  '#993C1D', // coral  — Shubhi
-  '#854F0B', // amber  — Subhani
-  '#3B6D11', // green  — Mohit
-  '#72243E', // pink   — Yadav
+  '#1D9E75', // teal    — Ajay
+  '#185FA5', // blue    — Keshav
+  '#534AB7', // purple  — Gourav
+  '#993C1D', // coral   — Shubhi
+  '#854F0B', // amber   — Subhani
+  '#3B6D11', // green   — Mohit
+  '#72243E', // pink    — Yadav
+  '#0E7490', // cyan    — Shishupal
 ];
 
-let selectedMembers = new Set(); // members ticked in the top grid
-let assignees       = new Set(); // multi-select: members chosen in "Assign to" bar
-let tasks           = [];        // { members: string[], text: string }[]
+// Shishupal-specific backup state
+let shishupalBackupOf = null;   // null = no backup, string = name of person being backed up
+
+let selectedMembers = new Set();
+let assignees       = new Set();
+let tasks           = [];
 
 // ---------- Helpers ----------
 
@@ -631,7 +638,110 @@ function toggleAssignee(name) {
   renderAssignChips();
 }
 
-// ---------- Add task ----------
+// ---------- Shishupal Backup Toggle ----------
+// Only shown when Shishupal is logged in.
+// When enabled: select one member to back up → name shows as "Shishupal(X's backup)"
+// When disabled: Shishupal's name shows normally (tasks still counted, name still in list)
+
+let shishupalBackupRef      = null;
+let shishupalBackupEnabled  = false;
+
+function initShishupalBackupRef() {
+  if (db) {
+    shishupalBackupRef = db.ref('qa-shishupal-backup');
+    shishupalBackupRef.on('value', snap => {
+      const val = snap.val();
+      shishupalBackupOf = val || null;
+      // Restore toggle ON if a backup name was previously saved
+      if (shishupalBackupOf && !shishupalBackupEnabled) {
+        shishupalBackupEnabled = true;
+        const btn  = document.getElementById('shishupalBackupToggleBtn');
+        const body = document.getElementById('shishupalBackupBody');
+        if (btn)  btn.classList.add('toggle-on');
+        if (body) body.style.display = 'block';
+      }
+      renderShishupalBackupUI();
+      build();
+    });
+  } else {
+    // localStorage fallback
+    try {
+      const saved = localStorage.getItem('qa-shishupal-backup');
+      if (saved) {
+        shishupalBackupOf      = saved;
+        shishupalBackupEnabled = true;
+        const btn  = document.getElementById('shishupalBackupToggleBtn');
+        const body = document.getElementById('shishupalBackupBody');
+        if (btn)  btn.classList.add('toggle-on');
+        if (body) body.style.display = 'block';
+      }
+    } catch(e) {}
+    renderShishupalBackupUI();
+    build();
+  }
+}
+
+function saveShishupalBackup() {
+  if (shishupalBackupRef) {
+    shishupalBackupRef.set(shishupalBackupOf || null).catch(() => {});
+  } else {
+    try { localStorage.setItem('qa-shishupal-backup', shishupalBackupOf || ''); } catch(e) {}
+  }
+}
+
+function toggleShishupalBackup() {
+  shishupalBackupEnabled = !shishupalBackupEnabled;
+  const btn  = document.getElementById('shishupalBackupToggleBtn');
+  const body = document.getElementById('shishupalBackupBody');
+  if (btn)  btn.classList.toggle('toggle-on', shishupalBackupEnabled);
+  if (body) body.style.display = shishupalBackupEnabled ? 'block' : 'none';
+  if (!shishupalBackupEnabled) {
+    shishupalBackupOf = null;
+    saveShishupalBackup();
+    build();
+  }
+  renderShishupalBackupPicker();
+}
+
+function selectShishupalBackupMember(name) {
+  shishupalBackupOf = name;
+  saveShishupalBackup();
+  renderShishupalBackupPicker();
+  build();
+}
+
+function renderShishupalBackupUI() {
+  const card = document.getElementById('shishupalBackupCard');
+  if (card) card.style.display = currentUser === 'Shishupal' ? 'block' : 'none';
+  renderShishupalBackupPicker();
+}
+
+function renderShishupalBackupPicker() {
+  const wrap = document.getElementById('shishupalBackupPicker');
+  if (!wrap) return;
+  // All members except Shishupal himself as backup options (including Mohit)
+  const options = MEMBERS.filter(n => n !== 'Shishupal');
+  wrap.innerHTML = options.map(name => {
+    const idx = MEMBERS.indexOf(name);
+    const col = COLORS[idx];
+    const sel = shishupalBackupOf === name;
+    return `<div class="give-chip ${sel ? 'give-chip-sel' : ''}"
+         style="${sel ? `background:${col};border-color:${col};color:white` : ''}"
+         onclick="selectShishupalBackupMember('${name}')">
+      <div class="tav" style="background:${sel ? 'rgba(255,255,255,0.3)' : col};color:white;width:18px;height:18px;font-size:8px">${initials(name)}</div>
+      ${name}
+    </div>`;
+  }).join('');
+
+  const status = document.getElementById('shishupalBackupStatus');
+  if (status) {
+    status.textContent = shishupalBackupOf
+      ? `✓ You will appear as: Shishupal(${shishupalBackupOf}'s backup)`
+      : 'Select who you are backing up today';
+    status.style.color = shishupalBackupOf ? '#1D9E75' : 'var(--text-tertiary)';
+    status.style.fontWeight = shishupalBackupOf ? '600' : '500';
+  }
+}
 
 function addTask() {
   const ta   = document.getElementById('tinput');
@@ -1040,11 +1150,29 @@ function renderTaskItem(item) {
       return `<div class="mail-bullet"><span class="mail-dot">&#8226;</span><span class="mail-btext">${applyMainFormatting(item.text)}</span></div>`;
   }
 }
+/** Return display name for a member — handles Shishupal backup label */
+function displayName(name) {
+  if (name === 'Shishupal' && shishupalBackupOf) {
+    return `Shishupal(${shishupalBackupOf}'s backup)`;
+  }
+  return name;
+}
+
 function formatNameList(members) {
-  const arr = [...members];
+  let arr = [...members];
+
+  // Shishupal rule:
+  // - Toggle OFF → exclude Shishupal from name list (tasks still count, name hidden)
+  // - Toggle ON  → show as "Shishupal(X's backup)"
+  if (!shishupalBackupEnabled) {
+    arr = arr.filter(n => n !== 'Shishupal');
+  }
+
   if (!arr.length) return '[no members selected]';
   if (arr.length === 1) return arr[0];
-  return arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
+
+  const display = arr.map(displayName);
+  return display.slice(0, -1).join(', ') + ' and ' + display[display.length - 1];
 }
 
 // ---------- Build generated mail ----------
@@ -1456,6 +1584,10 @@ function confirmClear() {
   assignees.clear();
   clearTasksFromStorage();
   clearLeadTasks();
+  if (currentUser === 'Shishupal') {
+    shishupalBackupOf = null;
+    saveShishupalBackup();
+  }
   if (db && reportRef) reportRef.remove().catch(() => {});
   try { localStorage.removeItem('qa-report-details'); } catch(e) {}
 
@@ -1614,6 +1746,15 @@ function completeLogin(name, isMainLead, isAltLead) {
   startReportDetailsListener();
   startPermissionsListener();
   startLeadTasksListener(() => { renderAssignedTasks(); });
+
+  // Shishupal backup — init Firebase listener if logged in as Shishupal
+  if (currentUser === 'Shishupal') {
+    initShishupalBackupRef();
+    renderShishupalBackupUI();
+  } else {
+    const card = document.getElementById('shishupalBackupCard');
+    if (card) card.style.display = 'none';
+  }
 
   let firstLoad = true;
   showSkeleton();
@@ -1790,6 +1931,12 @@ function logout() {
   try { sessionStorage.removeItem('qa-session'); } catch(e) {}
   currentUser        = null;
   isLead             = false;
+  shishupalBackupOf      = null;
+  shishupalBackupEnabled = false;
+  const sbBtn = document.getElementById('shishupalBackupToggleBtn');
+  if (sbBtn) sbBtn.classList.remove('toggle-on');
+  const sbBody = document.getElementById('shishupalBackupBody');
+  if (sbBody) sbBody.style.display = 'none';
   giveTaskEnabled   = false;
   leadTaskAssignees.clear();
   const giveBtn = document.getElementById('giveTaskToggleBtn');
@@ -1911,7 +2058,13 @@ fetchAlternateLeads().then(altSet => {
     startPermissionsListener();
     startLeadTasksListener(() => { renderAssignedTasks(); });
 
-    let firstLoad = true;
+    if (currentUser === 'Shishupal') {
+      initShishupalBackupRef();
+      renderShishupalBackupUI();
+    } else {
+      const card = document.getElementById('shishupalBackupCard');
+      if (card) card.style.display = 'none';
+    }
     startTasksListener(() => {
       tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
       selectedMembers.add(currentUser);

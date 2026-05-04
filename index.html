@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Status Generator</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231D9E75'/><circle cx='13' cy='13' r='7' stroke='white' stroke-width='2.2' fill='none'/><line x1='18.5' y1='18.5' x2='26' y2='26' stroke='white' stroke-width='2.5' stroke-linecap='round'/><line x1='10' y1='13' x2='16' y2='13' stroke='white' stroke-width='2' stroke-linecap='round'/><line x1='13' y1='10' x2='13' y2='16' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>" />
   <!-- Firebase SDK v8 (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -111,6 +112,7 @@
           <option>Subhani</option>
           <option>Mohit</option>
           <option>Yadav</option>
+          <option>Shishupal</option>
         </select>
       </div>
 
@@ -339,6 +341,32 @@
       </div>
       <div id="assignedTaskList">
         <div class="empty">No tasks assigned yet.</div>
+      </div>
+    </div>
+
+    <!-- SHISHUPAL BACKUP CARD (shown only when Shishupal is logged in) -->
+    <div class="card" id="shishupalBackupCard" style="display:none">
+      <div class="slabel">
+        <div class="sdot" style="background:#0E7490"></div>
+        Backup mode
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <span class="give-task-sub">Are you covering for someone today?</span>
+          <button id="shishupalBackupToggleBtn" class="toggle-btn" onclick="toggleShishupalBackup()">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+      <div id="shishupalBackupBody" style="display:none">
+        <div class="give-task-who" style="border-color:#a5f3fc">
+          <span class="give-task-label" style="color:#0E7490">Backing up:</span>
+          <div class="give-task-chips" id="shishupalBackupPicker"></div>
+        </div>
+        <div id="shishupalBackupStatus" style="font-size:12px;margin-top:8px;font-weight:500;color:var(--text-tertiary)">
+          Select who you are backing up today
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:5px;font-style:italic">
+          ⓘ Your name will appear as <strong>Shishupal(X's backup)</strong> in the daily report.
+        </div>
       </div>
     </div>
 
