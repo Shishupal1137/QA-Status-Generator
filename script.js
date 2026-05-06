@@ -646,39 +646,40 @@ function toggleAssignee(name) {
 let shishupalBackupRef      = null;
 let shishupalBackupEnabled  = false;
 
-function initShishupalBackupRef() {
+// ── Load Shishupal backup state globally (needed for all users' generated mail) ──
+function loadShishupalBackupState(callback) {
   if (db) {
-    shishupalBackupRef = db.ref('qa-shishupal-backup');
-    shishupalBackupRef.on('value', snap => {
-      const val = snap.val();
-      shishupalBackupOf = val || null;
-      // Restore toggle ON if a backup name was previously saved
-      if (shishupalBackupOf && !shishupalBackupEnabled) {
-        shishupalBackupEnabled = true;
-        const btn  = document.getElementById('shishupalBackupToggleBtn');
-        const body = document.getElementById('shishupalBackupBody');
-        if (btn)  btn.classList.add('toggle-on');
-        if (body) body.style.display = 'block';
-      }
-      renderShishupalBackupUI();
-      build();
+    const ref = db.ref('qa-shishupal-backup');
+    // Keep a live listener so all users see backup label update in real time
+    ref.on('value', snap => {
+      const val = snap.val() || null;
+      shishupalBackupOf      = val;
+      shishupalBackupEnabled = !!val;
+      build(); // refresh generated mail name list
+      if (callback) { callback(); callback = null; } // call once on first load
     });
   } else {
-    // localStorage fallback
     try {
-      const saved = localStorage.getItem('qa-shishupal-backup');
-      if (saved) {
-        shishupalBackupOf      = saved;
-        shishupalBackupEnabled = true;
-        const btn  = document.getElementById('shishupalBackupToggleBtn');
-        const body = document.getElementById('shishupalBackupBody');
-        if (btn)  btn.classList.add('toggle-on');
-        if (body) body.style.display = 'block';
-      }
+      const saved = localStorage.getItem('qa-shishupal-backup') || null;
+      shishupalBackupOf      = saved;
+      shishupalBackupEnabled = !!saved;
     } catch(e) {}
-    renderShishupalBackupUI();
-    build();
+    if (callback) callback();
   }
+}
+
+// ── Only called when Shishupal is the logged-in user — restores toggle UI ──
+function initShishupalBackupRef() {
+  // shishupalBackupOf is already loaded by loadShishupalBackupState
+  // Just restore the toggle UI to match the current value
+  if (shishupalBackupOf) {
+    shishupalBackupEnabled = true;
+    const btn  = document.getElementById('shishupalBackupToggleBtn');
+    const body = document.getElementById('shishupalBackupBody');
+    if (btn)  btn.classList.add('toggle-on');
+    if (body) body.style.display = 'block';
+  }
+  renderShishupalBackupUI();
 }
 
 function saveShishupalBackup() {
@@ -1161,15 +1162,15 @@ function displayName(name) {
 function formatNameList(members) {
   let arr = [...members];
 
-  // Shishupal rule:
-  // - Toggle OFF → exclude Shishupal from name list (tasks still count, name hidden)
-  // - Toggle ON  → show as "Shishupal(X's backup)"
-  if (!shishupalBackupEnabled) {
+  // Shishupal rule (read from Firebase-synced shishupalBackupOf, available to ALL users):
+  // - shishupalBackupOf is null  → Shishupal did NOT enable backup → hide name from header
+  // - shishupalBackupOf is set   → show as "Shishupal(X's backup)"
+  if (!shishupalBackupOf) {
     arr = arr.filter(n => n !== 'Shishupal');
   }
 
   if (!arr.length) return '[no members selected]';
-  if (arr.length === 1) return arr[0];
+  if (arr.length === 1) return displayName(arr[0]);
 
   const display = arr.map(displayName);
   return display.slice(0, -1).join(', ') + ' and ' + display[display.length - 1];
@@ -1747,14 +1748,16 @@ function completeLogin(name, isMainLead, isAltLead) {
   startPermissionsListener();
   startLeadTasksListener(() => { renderAssignedTasks(); });
 
-  // Shishupal backup — init Firebase listener if logged in as Shishupal
-  if (currentUser === 'Shishupal') {
-    initShishupalBackupRef();
-    renderShishupalBackupUI();
-  } else {
-    const card = document.getElementById('shishupalBackupCard');
-    if (card) card.style.display = 'none';
-  }
+  // Load Shishupal backup state for ALL users (so name list is correct for everyone)
+  // Then show Shishupal's own toggle UI if applicable
+  loadShishupalBackupState(() => {
+    if (currentUser === 'Shishupal') {
+      initShishupalBackupRef();
+    } else {
+      const card = document.getElementById('shishupalBackupCard');
+      if (card) card.style.display = 'none';
+    }
+  });
 
   let firstLoad = true;
   showSkeleton();
@@ -2058,13 +2061,10 @@ fetchAlternateLeads().then(altSet => {
     startPermissionsListener();
     startLeadTasksListener(() => { renderAssignedTasks(); });
 
-    if (currentUser === 'Shishupal') {
-      initShishupalBackupRef();
-      renderShishupalBackupUI();
-    } else {
-      const card = document.getElementById('shishupalBackupCard');
-      if (card) card.style.display = 'none';
-    }
+    loadShishupalBackupState(() => {
+      if (currentUser === 'Shishupal') initShishupalBackupRef();
+      else { const c = document.getElementById('shishupalBackupCard'); if (c) c.style.display = 'none'; }
+    });
     startTasksListener(() => {
       tasks.forEach(t => t.members.forEach(m => selectedMembers.add(m)));
       selectedMembers.add(currentUser);
