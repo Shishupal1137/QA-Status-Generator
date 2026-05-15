@@ -375,6 +375,10 @@ function startTasksListener(onUpdate) {
     fbListener = tasksRef.on('value', snapshot => {
       const val = snapshot.val();
       tasks = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+      // Ensure Shishupal is in selectedMembers if she has tasks AND backup is enabled
+      if (shishupalBackupEnabled && tasks.some(t => t.members.includes('Shishupal'))) {
+        selectedMembers.add('Shishupal');
+      }
       onUpdate();
     }, err => console.error('[Firebase] listener error:', err));
   } else {
@@ -650,13 +654,21 @@ let shishupalBackupEnabled  = false;
 function loadShishupalBackupState(callback) {
   if (db) {
     const ref = db.ref('qa-shishupal-backup');
-    // Keep a live listener so all users see backup label update in real time
+    // Live listener — fires for ALL users whenever Shishupal updates backup
     ref.on('value', snap => {
       const val = snap.val() || null;
+      const changed = val !== shishupalBackupOf;
       shishupalBackupOf      = val;
       shishupalBackupEnabled = !!val;
-      build(); // refresh generated mail name list
-      if (callback) { callback(); callback = null; } // call once on first load
+      // Only rebuild if state actually changed AND we're past first load
+      if (changed && currentUser) {
+        // Ensure Shishupal is in selectedMembers if she has tasks
+        if (val && tasks.some(t => t.members.includes('Shishupal'))) {
+          selectedMembers.add('Shishupal');
+        }
+        build();
+      }
+      if (callback) { callback(); callback = null; }
     });
   } else {
     try {
@@ -1528,7 +1540,11 @@ function copyMail() {
   }
 }
 
-// ---------- Day strip ----------
+// ---------- Time Tracker ----------
+function openTimeTracker() {
+  const user = currentUser || 'Unknown';
+  window.open(`timetracker.html?user=${encodeURIComponent(user)}`, '_blank');
+}
 
 const DAYS     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const TODAY_IDX = new Date().getDay(); // 0=Sun … 6=Sat

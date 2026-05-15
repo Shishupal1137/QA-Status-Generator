@@ -1802,3 +1802,27 @@ body {
   border-color: #FFCC80;
   color: #E65100;
 }
+
+/* ---------- Time Tracker button ---------- */
+.timerbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #EEF2FF;
+  color: #534AB7;
+  transition: all 0.15s;
+  font-family: var(--font);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.timerbtn:hover {
+  background: #e0e7ff;
+  border-color: #534AB7;
+}
+.timerbtn:active { transform: scale(0.97); }

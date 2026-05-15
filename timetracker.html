@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TimeTracker — QA Team</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231D9E75'/><circle cx='16' cy='17' r='9' stroke='white' stroke-width='2' fill='none'/><path d='M16 12v5l3 2' stroke='white' stroke-width='2' stroke-linecap='round'/><path d='M13 3h6' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal:     #1D9E75;
+      --teal-dk:  #0F6E56;
+      --teal-lt:  #E1F5EE;
+      --bg:       #F0F2F5;
+      --white:    #FFFFFF;
+      --nav:      #1A1F2E;
+      --border:   #E2E5EA;
+      --text:     #111827;
+      --sub:      #6B7280;
+      --red:      #EF4444;
+      --amber:    #F59E0B;
+      --blue:     #3B82F6;
+      --purple:   #8B5CF6;
+      --font:     'Segoe UI', system-ui, sans-serif;
+      --radius:   10px;
+      --shadow:   0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── NAV ── */
+    .nav {
+      background: var(--nav);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      height: 60px;
+      gap: 0;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      color: white; font-size: 18px; font-weight: 700;
+      margin-right: 32px;
+    }
+    .nav-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--teal);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; color: white; font-size: 14px;
+    }
+    .nav-tabs {
+      display: flex; gap: 0; flex: 1;
+    }
+    .nav-tab {
+      padding: 0 20px;
+      height: 60px;
+      display: flex; align-items: center; gap: 7px;
+      color: #9CA3AF;
+      cursor: pointer;
+      font-size: 14px; font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .nav-tab:hover { color: white; }
+    .nav-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+    .nav-total {
+      background: rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 6px 16px;
+      color: white;
+      font-size: 13px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .nav-total span { color: var(--teal); font-weight: 700; }
+
+    /* ── MAIN ── */
+    .main { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    /* ── TRACKER TAB ── */
+    .tracker-bar {
+      display: flex; gap: 12px; align-items: center;
+    }
+    .tracker-desc {
+      flex: 1;
+      border: none; outline: none;
+      font-size: 15px; color: var(--text);
+      background: transparent; font-family: var(--font);
+    }
+    .tracker-desc::placeholder { color: #9CA3AF; }
+    .tracker-sep { width: 1px; height: 28px; background: var(--border); }
+    .tracker-proj {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--sub);
+      outline: none;
+      font-family: var(--font);
+      min-width: 160px;
+    }
+    .tracker-time {
+      font-size: 22px; font-weight: 700; color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em; min-width: 110px; text-align: center;
+    }
+    .btn-start {
+      padding: 10px 22px;
+      background: var(--teal);
+      color: white; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 700;
+      cursor: pointer; font-family: var(--font);
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-start:hover { background: var(--teal-dk); }
+    .btn-start.running { background: var(--red); }
+    .btn-start.running:hover { background: #DC2626; }
+
+    /* entries */
+    .entries-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .entries-title { font-size: 11px; font-weight: 700; color: var(--sub); letter-spacing: .08em; text-transform: uppercase; }
+    .entries-total { font-size: 13px; color: var(--sub); }
+
+    .entry-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .entry-row:last-child { border-bottom: none; }
+    .entry-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .entry-desc { flex: 1; font-size: 14px; font-weight: 500; }
+    .entry-proj { font-size: 12px; color: var(--sub); background: var(--bg); padding: 2px 8px; border-radius: 10px; }
+    .entry-time-range { font-size: 12px; color: var(--sub); white-space: nowrap; }
+    .entry-dur { font-size: 14px; font-weight: 700; color: var(--text); min-width: 64px; text-align: right; }
+    .entry-del {
+      background: none; border: none; cursor: pointer;
+      color: #D1D5DB; font-size: 16px; line-height: 1;
+      transition: color 0.15s; padding: 2px 4px;
+    }
+    .entry-del:hover { color: var(--red); }
+    .empty-state {
+      text-align: center; padding: 32px 16px; color: var(--sub);
+      font-size: 14px;
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 10px; }
+
+    /* ── PROJECTS TAB ── */
+    .proj-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .proj-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 16px;
+      position: relative;
+      transition: transform 0.15s;
+    }
+    .proj-card:hover { transform: translateY(-2px); }
+    .proj-color-bar { height: 4px; border-radius: 4px; margin-bottom: 14px; }
+    .proj-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .proj-entries { font-size: 12px; color: var(--sub); }
+    .proj-time-total { font-size: 18px; font-weight: 700; color: var(--teal); margin-top: 8px; }
+    .proj-del {
+      position: absolute; top: 10px; right: 10px;
+      background: none; border: none; cursor: pointer;
+      color: #D1D5DB; font-size: 14px;
+      transition: color 0.15s;
+    }
+    .proj-del:hover { color: var(--red); }
+    .proj-new {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      color: var(--sub); font-size: 14px; cursor: pointer;
+      transition: all 0.15s; min-height: 100px;
+      background: var(--white);
+    }
+    .proj-new:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-lt); }
+
+    /* new project form */
+    .new-proj-form {
+      background: var(--teal-lt);
+      border: 1.5px solid var(--teal);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: none;
+      margin-bottom: 16px;
+    }
+    .new-proj-form.open { display: block; }
+    .new-proj-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .new-proj-input {
+      flex: 1; min-width: 160px;
+      padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 14px; font-family: var(--font);
+      outline: none;
+    }
+    .color-swatch {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .color-swatch.sel { border-color: var(--text) !important; }
+    .btn-sm {
+      padding: 8px 16px; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+    }
+    .btn-primary { background: var(--teal); color: white; }
+    .btn-ghost   { background: var(--bg); color: var(--sub); }
+
+    /* ── REPORTS TAB ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    @media(max-width: 620px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
+    .stat-card {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 18px 16px;
+    }
+    .stat-label { font-size: 10px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+    .stat-sub   { font-size: 12px; color: var(--sub); margin-top: 4px; }
+
+    .chart-section-title {
+      font-size: 11px; font-weight: 700; color: var(--sub);
+      letter-spacing: .08em; text-transform: uppercase; margin-bottom: 16px;
+    }
+    .proj-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .proj-bar-name { font-size: 13px; font-weight: 600; min-width: 100px; }
+    .proj-bar-track {
+      flex: 1; height: 10px; border-radius: 5px; background: var(--bg); overflow: hidden;
+    }
+    .proj-bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
+    .proj-bar-time { font-size: 12px; color: var(--sub); min-width: 60px; text-align: right; }
+
+    .history-day { margin-bottom: 24px; }
+    .history-day-hd {
+      font-size: 12px; font-weight: 700; color: var(--sub);
+      text-transform: uppercase; letter-spacing: .06em;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+      margin-bottom: 10px; display: flex; justify-content: space-between;
+    }
+
+    /* ── MODAL ── */
+    .modal-back {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(3px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-back.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: white; border-radius: 14px;
+      padding: 28px; max-width: 340px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      transform: scale(0.94); transition: transform 0.2s;
+    }
+    .modal-back.open .modal { transform: scale(1); }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .modal-close { float: right; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--sub); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-icon">T</div>
+    TimeTracker
+  </div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="switchTab('tracker')" id="tab-tracker">
+      ⏱ Tracker
+    </div>
+    <div class="nav-tab" onclick="switchTab('projects')" id="tab-projects">
+      📁 Projects
+    </div>
+    <div class="nav-tab" onclick="switchTab('reports')" id="tab-reports">
+      📊 Reports
+    </div>
+  </div>
+  <div class="nav-total">Total time logged: <span id="totalLogged">0s</span></div>
+</nav>
+
+<!-- TRACKER TAB -->
+<div class="main tab-panel active" id="panel-tracker">
+  <!-- Timer bar -->
+  <div class="card">
+    <div class="tracker-bar">
+      <input type="text" class="tracker-desc" id="taskDesc" placeholder="What are you working on?"/>
+      <div class="tracker-sep"></div>
+      <select class="tracker-proj" id="projSelect">
+        <option value="">— Select Project —</option>
+      </select>
+      <div class="tracker-time" id="timerDisplay">00 : 00 : 00</div>
+      <button class="btn-start" id="startBtn" onclick="toggleTimer()">START</button>
+    </div>
+  </div>
+
+  <!-- Today's entries -->
+  <div class="card">
+    <div class="entries-hd">
+      <span class="entries-title">Today's Entries</span>
+      <span class="entries-total" id="todayTotal">0h 0m</span>
+    </div>
+    <div id="entriesList">
+      <div class="empty-state">
+        <div class="empty-icon">⏰</div>
+        No entries yet today. Start the timer above!
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECTS TAB -->
+<div class="main tab-panel" id="panel-projects">
+  <div class="new-proj-form" id="newProjForm">
+    <div class="new-proj-row">
+      <input class="new-proj-input" id="newProjName" placeholder="Project name…" onkeydown="if(event.key==='Enter')saveProject()"/>
+      <div id="colorPicker" style="display:flex;gap:6px"></div>
+      <button class="btn-sm btn-primary" onclick="saveProject()">Create</button>
+      <button class="btn-sm btn-ghost" onclick="closeNewProj()">Cancel</button>
+    </div>
+  </div>
+  <div class="proj-grid" id="projGrid"></div>
+</div>
+
+<!-- REPORTS TAB -->
+<div class="main tab-panel" id="panel-reports">
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+      <div class="stat-label">Total All Time</div>
+      <div class="stat-value" id="rTotalAll">0s</div>
+      <div class="stat-sub">across all projects</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Today</div>
+      <div class="stat-value" id="rToday">0s</div>
+      <div class="stat-sub" id="rTodayEntries">0 entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Projects</div>
+      <div class="stat-value" id="rProjects">0</div>
+      <div class="stat-sub" id="rProjSub">0 with entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Entries</div>
+      <div class="stat-value" id="rEntries">0</div>
+      <div class="stat-sub">logged</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-section-title">Time by Project</div>
+    <div id="projChart">
+      <div class="empty-state"><div class="empty-icon">📊</div>Start tracking time to see reports here.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-section-title">History</div>
+    <div id="historyList">
+      <div class="empty-state">No history yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+//  Firebase setup — uses SAME config as main app
+// ─────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCdnt4Yv2xDIUaIccCkNQEtW2cZl2Xv7UE",
+  authDomain:        "orion-qa-generator.firebaseapp.com",
+  databaseURL:       "https://orion-qa-generator-default-rtdb.firebaseio.com",
+  projectId:         "orion-qa-generator",
+  storageBucket:     "orion-qa-generator.firebasestorage.app",
+  messagingSenderId: "700142321129",
+  appId:             "1:700142321129:web:835c19f5964e270f561f78"
+};
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+
+// ─────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────
+const params   = new URLSearchParams(location.search);
+const USERNAME = params.get('user') || 'Unknown';
+const userRef  = db.ref(`qa-timetracker/${USERNAME}`);
+
+const PROJECT_COLORS = ['#1D9E75','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#EC4899','#0E7490','#64748B'];
+let projects   = [];   // { id, name, color }
+let entries    = {};   // { YYYY-MM-DD: [ {id, desc, proj, start, end, dur} ] }
+let selectedColor = PROJECT_COLORS[0];
+
+let timerRunning = false;
+let timerStart   = null;
+let timerInterval = null;
+let activeDesc   = '';
+let activeProj   = '';
+
+const todayKey = () => new Date().toISOString().slice(0,10);
+const pad = n  => String(n).padStart(2,'0');
+
+function fmtDur(sec) {
+  if (sec < 60) return sec + 's';
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h > 0) return `${h}h ${pad(m)}m`;
+  return `${m}m ${pad(s)}s`;
+}
+function fmtHM(sec) {
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+  return `${h}h ${pad(m)}m`;
+}
+function fmtClock(sec) {
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return `${pad(h)} : ${pad(m)} : ${pad(s)}`;
+}
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ─────────────────────────────────────────
+//  Firebase I/O
+// ─────────────────────────────────────────
+function load() {
+  userRef.once('value', snap => {
+    const data = snap.val() || {};
+    projects = data.projects ? Object.values(data.projects) : [];
+    entries  = data.entries  || {};
+    renderAll();
+  });
+}
+
+function saveProjToFB() {
+  const obj = {};
+  projects.forEach(p => { obj[p.id] = p; });
+  userRef.child('projects').set(obj);
+}
+
+function saveDayEntries(day) {
+  userRef.child(`entries/${day}`).set(entries[day] || null);
+}
+
+// ─────────────────────────────────────────
+//  Timer
+// ─────────────────────────────────────────
+function toggleTimer() {
+  if (timerRunning) stopTimer();
+  else startTimer();
+}
+
+function startTimer() {
+  const desc = document.getElementById('taskDesc').value.trim();
+  activeDesc = desc || 'Untitled';
+  activeProj = document.getElementById('projSelect').value;
+  timerStart = Date.now();
+  timerRunning = true;
+  document.getElementById('startBtn').textContent = 'STOP';
+  document.getElementById('startBtn').classList.add('running');
+  timerInterval = setInterval(() => {
+    const sec = Math.floor((Date.now() - timerStart) / 1000);
+    document.getElementById('timerDisplay').textContent = fmtClock(sec);
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  const dur = Math.floor((Date.now() - timerStart) / 1000);
+  timerRunning = false;
+  document.getElementById('startBtn').textContent = 'START';
+  document.getElementById('startBtn').classList.remove('running');
+  document.getElementById('timerDisplay').textContent = '00 : 00 : 00';
+
+  if (dur < 2) return; // ignore accidental clicks
+
+  const day = todayKey();
+  if (!entries[day]) entries[day] = [];
+  const entry = {
+    id:    Date.now(),
+    desc:  activeDesc,
+    proj:  activeProj,
+    start: new Date(timerStart).toISOString(),
+    end:   new Date().toISOString(),
+    dur,
+  };
+  entries[day].unshift(entry);
+  saveDayEntries(day);
+  renderAll();
+  document.getElementById('taskDesc').value = '';
+}
+
+// ─────────────────────────────────────────
+//  Projects
+// ─────────────────────────────────────────
+function openNewProj() {
+  document.getElementById('newProjForm').classList.add('open');
+  document.getElementById('newProjName').focus();
+  renderColorPicker();
+}
+function closeNewProj() {
+  document.getElementById('newProjForm').classList.remove('open');
+  document.getElementById('newProjName').value = '';
+}
+
+function renderColorPicker() {
+  document.getElementById('colorPicker').innerHTML = PROJECT_COLORS.map(c => `
+    <div class="color-swatch ${c===selectedColor?'sel':''}"
+         style="background:${c}"
+         onclick="pickColor('${c}')"></div>`).join('');
+}
+function pickColor(c) { selectedColor = c; renderColorPicker(); }
+
+function saveProject() {
+  const name = document.getElementById('newProjName').value.trim();
+  if (!name) return;
+  const proj = { id: Date.now(), name, color: selectedColor };
+  projects.push(proj);
+  saveProjToFB();
+  closeNewProj();
+  renderAll();
+}
+
+function deleteProject(id) {
+  projects = projects.filter(p => p.id !== id);
+  saveProjToFB();
+  renderAll();
+}
+
+// ─────────────────────────────────────────
+//  Delete entry
+// ─────────────────────────────────────────
+function deleteEntry(day, id) {
+  entries[day] = (entries[day] || []).filter(e => e.id !== id);
+  if (!entries[day].length) delete entries[day];
+  saveDayEntries(day);
+  renderAll();
+}
+
+// ─────────────────────────────────────────
+//  Render
+// ─────────────────────────────────────────
+function renderAll() {
+  renderProjSelect();
+  renderEntriesTab();
+  renderProjectsTab();
+  renderReports();
+  updateTotalLogged();
+}
+
+function projColor(projId) {
+  const p = projects.find(p => String(p.id) === String(projId));
+  return p ? p.color : '#9CA3AF';
+}
+function projName(projId) {
+  if (!projId) return 'No project';
+  const p = projects.find(p => String(p.id) === String(projId));
+  return p ? p.name : 'Unknown';
+}
+
+function renderProjSelect() {
+  const sel = document.getElementById('projSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select Project —</option>' +
+    projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function renderEntriesTab() {
+  const day  = todayKey();
+  const list = entries[day] || [];
+  const el   = document.getElementById('entriesList');
+  const tot  = document.getElementById('todayTotal');
+
+  const totalSec = list.reduce((s,e) => s + e.dur, 0);
+  tot.textContent = fmtHM(totalSec);
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⏰</div>No entries yet today. Start the timer above!</div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(e => `
+    <div class="entry-row">
+      <div class="entry-dot" style="background:${projColor(e.proj)}"></div>
+      <div class="entry-desc">${esc(e.desc)}</div>
+      <div class="entry-proj">${esc(projName(e.proj))}</div>
+      <div class="entry-time-range">${fmtTime(e.start)} – ${fmtTime(e.end)}</div>
+      <div class="entry-dur">${fmtDur(e.dur)}</div>
+      <button class="entry-del" onclick="deleteEntry('${day}',${e.id})" title="Delete">✕</button>
+    </div>`).join('');
+}
+
+function renderProjectsTab() {
+  const grid = document.getElementById('projGrid');
+  grid.innerHTML = projects.map(p => {
+    const allEntries = Object.values(entries).flat().filter(e => String(e.proj)===String(p.id));
+    const total = allEntries.reduce((s,e) => s+e.dur, 0);
+    return `<div class="proj-card">
+      <div class="proj-color-bar" style="background:${p.color}"></div>
+      <button class="proj-del" onclick="deleteProject(${p.id})">✕</button>
+      <div class="proj-name">${esc(p.name)}</div>
+      <div class="proj-entries">${allEntries.length} entries</div>
+      <div class="proj-time-total">${fmtHM(total)}</div>
+    </div>`;
+  }).join('') +
+  `<div class="proj-new" onclick="openNewProj()">+ Create New Project</div>`;
+}
+
+function renderReports() {
+  const all = Object.values(entries).flat();
+  const today = (entries[todayKey()] || []);
+  const totalAll = all.reduce((s,e)=>s+e.dur,0);
+  const totalToday = today.reduce((s,e)=>s+e.dur,0);
+  const projsWithEntries = new Set(all.map(e=>e.proj).filter(Boolean)).size;
+
+  document.getElementById('rTotalAll').textContent = fmtDur(totalAll);
+  document.getElementById('rToday').textContent    = fmtDur(totalToday);
+  document.getElementById('rTodayEntries').textContent = today.length + ' entries';
+  document.getElementById('rProjects').textContent = projects.length;
+  document.getElementById('rProjSub').textContent  = projsWithEntries + ' with entries';
+  document.getElementById('rEntries').textContent  = all.length;
+
+  // By-project chart
+  const chart = document.getElementById('projChart');
+  if (!all.length) {
+    chart.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div>Start tracking time to see reports here.</div>`;
+  } else {
+    const byProj = {};
+    all.forEach(e => {
+      const k = e.proj || '__none';
+      byProj[k] = (byProj[k]||0) + e.dur;
+    });
+    const maxSec = Math.max(...Object.values(byProj));
+    chart.innerHTML = Object.entries(byProj).sort((a,b)=>b[1]-a[1]).map(([k,sec])=>{
+      const col  = k==='__none' ? '#9CA3AF' : projColor(k);
+      const name = k==='__none' ? 'No project' : projName(k);
+      const pct  = maxSec ? Math.round(sec/maxSec*100) : 0;
+      return `<div class="proj-bar-row">
+        <div class="proj-bar-name" style="color:${col}">${esc(name)}</div>
+        <div class="proj-bar-track"><div class="proj-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="proj-bar-time">${fmtHM(sec)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // History
+  const hist = document.getElementById('historyList');
+  const days  = Object.keys(entries).sort().reverse();
+  if (!days.length) {
+    hist.innerHTML = `<div class="empty-state">No history yet.</div>`;
+  } else {
+    hist.innerHTML = days.map(day => {
+      const list  = entries[day] || [];
+      const total = list.reduce((s,e)=>s+e.dur,0);
+      const label = day === todayKey() ? 'Today' : new Date(day+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+      return `<div class="history-day">
+        <div class="history-day-hd"><span>${label}</span><span>${fmtHM(total)}</span></div>
+        ${list.map(e=>`<div class="entry-row">
+          <div class="entry-dot" style="background:${projColor(e.proj)}"></div>
+          <div class="entry-desc">${esc(e.desc)}</div>
+          <div class="entry-proj">${esc(projName(e.proj))}</div>
+          <div class="entry-time-range">${fmtTime(e.start)} – ${fmtTime(e.end)}</div>
+          <div class="entry-dur">${fmtDur(e.dur)}</div>
+          <button class="entry-del" onclick="deleteEntry('${day}',${e.id})" title="Delete">✕</button>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+}
+
+function updateTotalLogged() {
+  const all = Object.values(entries).flat();
+  const sec = all.reduce((s,e)=>s+e.dur,0);
+  document.getElementById('totalLogged').textContent = fmtDur(sec);
+}
+
+// ─────────────────────────────────────────
+//  Tab switching
+// ─────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ─────────────────────────────────────────
+//  Init
+// ─────────────────────────────────────────
+document.title = `TimeTracker — ${USERNAME}`;
+load();
+
+// Set page title with username
+const brand = document.querySelector('.nav-brand');
+if (brand) brand.innerHTML += `<span style="font-size:12px;color:#4B5563;font-weight:400;margin-left:6px">${USERNAME}</span>`;
+</script>
+</body>
+</html>
