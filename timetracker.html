@@ -1,402 +1,381 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>TimeTracker — QA Team</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231D9E75'/><circle cx='16' cy='17' r='9' stroke='white' stroke-width='2' fill='none'/><path d='M16 12v5l3 2' stroke='white' stroke-width='2' stroke-linecap='round'/><path d='M13 3h6' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>"/>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QA Time Tracker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231D9E75'/><circle cx='16' cy='17' r='9' stroke='white' stroke-width='2' fill='none'/><path d='M16 12v5l3 2' stroke='white' stroke-width='2' stroke-linecap='round'/><path d='M12 3h8' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>"/>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#1D9E75;--teal-dk:#0F6E56;--teal-lt:#E1F5EE;--teal-md:#5DCAA5;
+  --bg:#F0F2F5;--white:#fff;--nav:#0F172A;--card:#fff;
+  --border:#E2E8F0;--border2:#CBD5E1;
+  --text:#0F172A;--sub:#64748B;--faint:#94A3B8;
+  --red:#EF4444;--amber:#F59E0B;--blue:#3B82F6;--purple:#8B5CF6;--pink:#EC4899;
+  --font:'Segoe UI',system-ui,sans-serif;
+  --r:12px;--sh:0 4px 24px rgba(0,0,0,.08);
+}
+[data-dark]{
+  --bg:#0F172A;--white:#1E293B;--card:#1E293B;--nav:#020617;
+  --border:#334155;--border2:#475569;--text:#F1F5F9;--sub:#94A3B8;--faint:#475569;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
 
-    :root {
-      --teal:     #1D9E75;
-      --teal-dk:  #0F6E56;
-      --teal-lt:  #E1F5EE;
-      --bg:       #F0F2F5;
-      --white:    #FFFFFF;
-      --nav:      #1A1F2E;
-      --border:   #E2E5EA;
-      --text:     #111827;
-      --sub:      #6B7280;
-      --red:      #EF4444;
-      --amber:    #F59E0B;
-      --blue:     #3B82F6;
-      --purple:   #8B5CF6;
-      --font:     'Segoe UI', system-ui, sans-serif;
-      --radius:   10px;
-      --shadow:   0 2px 12px rgba(0,0,0,0.08);
-    }
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:var(--card);border-radius:20px;padding:40px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.12);text-align:center}
+.login-logo{width:64px;height:64px;background:var(--teal);border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 8px 24px rgba(29,158,117,.35)}
+.login-logo svg{width:32px;height:32px}
+.login-title{font-size:22px;font-weight:800;margin-bottom:4px;color:var(--text)}
+.login-sub{font-size:13px;color:var(--sub);margin-bottom:28px}
+.login-field{margin-bottom:14px;text-align:left}
+.login-label{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:6px}
+.login-sel,.login-inp{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font);background:var(--bg);color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s}
+.login-sel:focus,.login-inp:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(29,158,117,.15)}
+.login-btn{width:100%;padding:13px;background:var(--teal);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--font);margin-top:8px;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-btn:hover{background:var(--teal-dk)}
+.login-hint{font-size:11px;color:var(--faint);margin-top:14px}
+.login-err{color:var(--red);font-size:12px;margin-top:8px;min-height:16px}
 
-    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+/* ── APP ── */
+.app-wrap{display:none;min-height:100vh;flex-direction:column}
+.app-wrap.show{display:flex}
 
-    /* ── NAV ── */
-    .nav {
-      background: var(--nav);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      height: 60px;
-      gap: 0;
-      position: sticky; top: 0; z-index: 100;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-    .nav-brand {
-      display: flex; align-items: center; gap: 10px;
-      color: white; font-size: 18px; font-weight: 700;
-      margin-right: 32px;
-    }
-    .nav-icon {
-      width: 36px; height: 36px; border-radius: 8px;
-      background: var(--teal);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 900; color: white; font-size: 14px;
-    }
-    .nav-tabs {
-      display: flex; gap: 0; flex: 1;
-    }
-    .nav-tab {
-      padding: 0 20px;
-      height: 60px;
-      display: flex; align-items: center; gap: 7px;
-      color: #9CA3AF;
-      cursor: pointer;
-      font-size: 14px; font-weight: 500;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s;
-      user-select: none;
-    }
-    .nav-tab:hover { color: white; }
-    .nav-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
-    .nav-total {
-      background: rgba(255,255,255,0.12);
-      border-radius: 20px;
-      padding: 6px 16px;
-      color: white;
-      font-size: 13px;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .nav-total span { color: var(--teal); font-weight: 700; }
+/* ── TOP NAV ── */
+.topnav{background:var(--nav);height:60px;display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.tnav-brand{display:flex;align-items:center;gap:10px;color:#fff;font-size:16px;font-weight:800;flex:1}
+.tnav-icon{width:34px;height:34px;background:var(--teal);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.tnav-user{font-size:12px;color:#94A3B8;font-weight:400;margin-left:4px}
+.tnav-pill{background:rgba(255,255,255,.1);border-radius:20px;padding:5px 14px;color:#fff;font-size:12px;display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.15)}
+.tnav-pill .live-dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;animation:pulseDot 1.5s ease-in-out infinite}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.3}}
+.tnav-pill.paused .live-dot{background:#F59E0B;animation:none}
+.tnav-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;padding:6px 10px;cursor:pointer;font-size:12px;font-family:var(--font);transition:all .15s;display:flex;align-items:center;gap:5px}
+.tnav-btn:hover{background:rgba(255,255,255,.16)}
 
-    /* ── MAIN ── */
-    .main { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
+/* ── MAIN LAYOUT ── */
+.app-body{flex:1;max-width:1100px;margin:0 auto;width:100%;padding:24px 20px 60px;display:grid;grid-template-columns:280px 1fr;gap:20px}
+@media(max-width:768px){.app-body{grid-template-columns:1fr}}
 
-    /* ── CARDS ── */
-    .card {
-      background: var(--white);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px 24px;
-      margin-bottom: 16px;
-    }
+/* ── SIDEBAR ── */
+.sidebar{}
+.sidebar-timer-card{background:linear-gradient(135deg,var(--teal),var(--teal-dk));border-radius:var(--r);padding:24px;color:#fff;margin-bottom:16px;box-shadow:0 8px 32px rgba(29,158,117,.35)}
+.st-label{font-size:11px;font-weight:700;letter-spacing:.08em;opacity:.75;text-transform:uppercase;margin-bottom:10px}
+.st-clock{font-size:44px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-bottom:16px;text-shadow:0 2px 8px rgba(0,0,0,.2)}
+.st-desc-input{width:100%;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;padding:9px 12px;font-size:13px;font-family:var(--font);outline:none;margin-bottom:8px;transition:border-color .2s}
+.st-desc-input::placeholder{color:rgba(255,255,255,.6)}
+.st-desc-input:focus{border-color:rgba(255,255,255,.7)}
+.st-proj-sel{width:100%;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;padding:9px 12px;font-size:13px;font-family:var(--font);outline:none;margin-bottom:14px;cursor:pointer}
+.st-proj-sel option{background:var(--nav);color:#fff}
+.st-start-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font);background:rgba(255,255,255,.95);color:var(--teal-dk);display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s}
+.st-start-btn:hover{background:#fff}
+.st-start-btn.stop{background:rgba(239,68,68,.9);color:#fff}
+.st-start-btn.stop:hover{background:var(--red)}
 
-    /* ── TRACKER TAB ── */
-    .tracker-bar {
-      display: flex; gap: 12px; align-items: center;
-    }
-    .tracker-desc {
-      flex: 1;
-      border: none; outline: none;
-      font-size: 15px; color: var(--text);
-      background: transparent; font-family: var(--font);
-    }
-    .tracker-desc::placeholder { color: #9CA3AF; }
-    .tracker-sep { width: 1px; height: 28px; background: var(--border); }
-    .tracker-proj {
-      padding: 6px 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 13px;
-      background: var(--bg);
-      color: var(--sub);
-      outline: none;
-      font-family: var(--font);
-      min-width: 160px;
-    }
-    .tracker-time {
-      font-size: 22px; font-weight: 700; color: var(--text);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.04em; min-width: 110px; text-align: center;
-    }
-    .btn-start {
-      padding: 10px 22px;
-      background: var(--teal);
-      color: white; border: none; border-radius: 8px;
-      font-size: 14px; font-weight: 700;
-      cursor: pointer; font-family: var(--font);
-      transition: background 0.15s;
-      white-space: nowrap;
-    }
-    .btn-start:hover { background: var(--teal-dk); }
-    .btn-start.running { background: var(--red); }
-    .btn-start.running:hover { background: #DC2626; }
+.sidebar-section{background:var(--card);border-radius:var(--r);padding:16px;box-shadow:var(--sh);margin-bottom:16px}
+.ss-title{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.07em;text-transform:uppercase;margin-bottom:12px}
+.proj-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background .15s}
+.proj-chip:hover{background:var(--bg)}
+.proj-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.proj-chip-name{flex:1;font-size:13px;font-weight:500}
+.proj-chip-dur{font-size:12px;color:var(--sub)}
+.proj-chip-del{background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;transition:color .15s;padding:0 2px}
+.proj-chip-del:hover{color:var(--red)}
+.add-proj-btn{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;color:var(--teal);font-size:13px;font-weight:600;cursor:pointer;border:1.5px dashed var(--teal-md);width:100%;background:transparent;font-family:var(--font);transition:background .15s;margin-top:4px}
+.add-proj-btn:hover{background:var(--teal-lt)}
 
-    /* entries */
-    .entries-hd {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .entries-title { font-size: 11px; font-weight: 700; color: var(--sub); letter-spacing: .08em; text-transform: uppercase; }
-    .entries-total { font-size: 13px; color: var(--sub); }
+/* new proj form */
+.new-proj-form{background:var(--teal-lt);border:1.5px solid var(--teal-md);border-radius:10px;padding:12px;margin-bottom:12px;display:none}
+.new-proj-form.open{display:block}
+.new-proj-inp{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:var(--font);background:var(--white);color:var(--text);outline:none;margin-bottom:10px}
+.color-dots{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.cdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s}
+.cdot:hover{transform:scale(1.2)}
+.cdot.sel{border-color:var(--text) !important;transform:scale(1.1)}
+.form-row{display:flex;gap:8px}
+.btn-xs{padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.btn-teal{background:var(--teal);color:#fff}
+.btn-ghost{background:var(--border);color:var(--sub)}
 
-    .entry-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .entry-row:last-child { border-bottom: none; }
-    .entry-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-    .entry-desc { flex: 1; font-size: 14px; font-weight: 500; }
-    .entry-proj { font-size: 12px; color: var(--sub); background: var(--bg); padding: 2px 8px; border-radius: 10px; }
-    .entry-time-range { font-size: 12px; color: var(--sub); white-space: nowrap; }
-    .entry-dur { font-size: 14px; font-weight: 700; color: var(--text); min-width: 64px; text-align: right; }
-    .entry-del {
-      background: none; border: none; cursor: pointer;
-      color: #D1D5DB; font-size: 16px; line-height: 1;
-      transition: color 0.15s; padding: 2px 4px;
-    }
-    .entry-del:hover { color: var(--red); }
-    .empty-state {
-      text-align: center; padding: 32px 16px; color: var(--sub);
-      font-size: 14px;
-    }
-    .empty-icon { font-size: 40px; margin-bottom: 10px; }
+/* ── MAIN CONTENT ── */
+.main-content{}
 
-    /* ── PROJECTS TAB ── */
-    .proj-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 14px;
-    }
-    .proj-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 18px 16px;
-      position: relative;
-      transition: transform 0.15s;
-    }
-    .proj-card:hover { transform: translateY(-2px); }
-    .proj-color-bar { height: 4px; border-radius: 4px; margin-bottom: 14px; }
-    .proj-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-    .proj-entries { font-size: 12px; color: var(--sub); }
-    .proj-time-total { font-size: 18px; font-weight: 700; color: var(--teal); margin-top: 8px; }
-    .proj-del {
-      position: absolute; top: 10px; right: 10px;
-      background: none; border: none; cursor: pointer;
-      color: #D1D5DB; font-size: 14px;
-      transition: color 0.15s;
-    }
-    .proj-del:hover { color: var(--red); }
-    .proj-new {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 18px 16px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      color: var(--sub); font-size: 14px; cursor: pointer;
-      transition: all 0.15s; min-height: 100px;
-      background: var(--white);
-    }
-    .proj-new:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-lt); }
+/* period tabs */
+.period-tabs{display:flex;gap:4px;background:var(--card);border-radius:10px;padding:4px;box-shadow:var(--sh);margin-bottom:20px;width:fit-content}
+.ptab{padding:7px 18px;border-radius:7px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;transition:all .15s;border:none;background:transparent;font-family:var(--font)}
+.ptab.active{background:var(--teal);color:#fff;box-shadow:0 2px 8px rgba(29,158,117,.4)}
 
-    /* new project form */
-    .new-proj-form {
-      background: var(--teal-lt);
-      border: 1.5px solid var(--teal);
-      border-radius: var(--radius);
-      padding: 16px;
-      display: none;
-      margin-bottom: 16px;
-    }
-    .new-proj-form.open { display: block; }
-    .new-proj-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .new-proj-input {
-      flex: 1; min-width: 160px;
-      padding: 8px 12px; border: 1px solid var(--border);
-      border-radius: 6px; font-size: 14px; font-family: var(--font);
-      outline: none;
-    }
-    .color-swatch {
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 2px solid transparent; cursor: pointer;
-      transition: border-color 0.15s;
-    }
-    .color-swatch.sel { border-color: var(--text) !important; }
-    .btn-sm {
-      padding: 8px 16px; border: none; border-radius: 6px;
-      font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-    }
-    .btn-primary { background: var(--teal); color: white; }
-    .btn-ghost   { background: var(--bg); color: var(--sub); }
+/* stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:600px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--card);border-radius:var(--r);padding:18px 16px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,var(--teal))}
+.sc-label{font-size:10px;font-weight:700;color:var(--sub);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px}
+.sc-val{font-size:26px;font-weight:900;color:var(--text);line-height:1}
+.sc-sub{font-size:11px;color:var(--sub);margin-top:5px}
+.sc-trend{font-size:11px;font-weight:600;margin-top:4px}
+.sc-trend.up{color:#22C55E}.sc-trend.dn{color:var(--red)}.sc-trend.neu{color:var(--sub)}
 
-    /* ── REPORTS TAB ── */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-    @media(max-width: 620px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
-    .stat-card {
-      background: var(--white); border-radius: var(--radius);
-      box-shadow: var(--shadow); padding: 18px 16px;
-    }
-    .stat-label { font-size: 10px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
-    .stat-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
-    .stat-sub   { font-size: 12px; color: var(--sub); margin-top: 4px; }
+/* chart cards */
+.chart-card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px}
+.cc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cc-title{font-size:14px;font-weight:700;color:var(--text)}
+.cc-sub{font-size:12px;color:var(--sub)}
+.chart-wrap{position:relative;height:220px}
 
-    .chart-section-title {
-      font-size: 11px; font-weight: 700; color: var(--sub);
-      letter-spacing: .08em; text-transform: uppercase; margin-bottom: 16px;
-    }
-    .proj-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .proj-bar-name { font-size: 13px; font-weight: 600; min-width: 100px; }
-    .proj-bar-track {
-      flex: 1; height: 10px; border-radius: 5px; background: var(--bg); overflow: hidden;
-    }
-    .proj-bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
-    .proj-bar-time { font-size: 12px; color: var(--sub); min-width: 60px; text-align: right; }
+/* entries table */
+.entries-table{width:100%;border-collapse:collapse}
+.et-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;transition:background .15s}
+.et-row:hover{background:var(--bg)}
+.et-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:1px}
+.et-main{flex:1;min-width:0}
+.et-desc{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.et-meta{font-size:11px;color:var(--sub);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.et-proj-tag{padding:1px 7px;border-radius:6px;font-weight:600;font-size:10px}
+.et-time{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap}
+.et-dur{font-size:12px;color:var(--sub);white-space:nowrap;min-width:50px;text-align:right}
+.et-del{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;padding:3px 6px;border-radius:5px;transition:all .15s}
+.et-del:hover{background:rgba(239,68,68,.1);color:var(--red)}
+.empty-state{text-align:center;padding:32px;color:var(--sub);font-size:13px}
+.empty-icon{font-size:36px;margin-bottom:10px}
 
-    .history-day { margin-bottom: 24px; }
-    .history-day-hd {
-      font-size: 12px; font-weight: 700; color: var(--sub);
-      text-transform: uppercase; letter-spacing: .06em;
-      padding-bottom: 8px; border-bottom: 1px solid var(--border);
-      margin-bottom: 10px; display: flex; justify-content: space-between;
-    }
+/* weekly heatmap */
+.heatmap-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
+.hm-cell{height:40px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9px;font-weight:600;transition:transform .15s;cursor:default}
+.hm-cell:hover{transform:scale(1.05)}
+.hm-day{color:var(--sub);margin-bottom:2px}
+.hm-val{color:var(--text);font-size:10px;font-weight:700}
 
-    /* ── MODAL ── */
-    .modal-back {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45);
-      backdrop-filter: blur(3px);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s;
-    }
-    .modal-back.open { opacity: 1; pointer-events: all; }
-    .modal {
-      background: white; border-radius: 14px;
-      padding: 28px; max-width: 340px; width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-      transform: scale(0.94); transition: transform 0.2s;
-    }
-    .modal-back.open .modal { transform: scale(1); }
-    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
-    .modal-close { float: right; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--sub); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-  </style>
+/* activity feed */
+.activity-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.activity-item:last-child{border-bottom:none}
+.ai-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.ai-main{flex:1}
+.ai-title{font-size:13px;font-weight:600}
+.ai-time{font-size:11px;color:var(--sub);margin-top:2px}
+.ai-dur{font-size:13px;font-weight:700;color:var(--teal)}
+
+/* goal ring */
+.goal-wrap{display:flex;align-items:center;gap:20px}
+.goal-ring{position:relative;width:110px;height:110px;flex-shrink:0}
+.goal-ring svg{transform:rotate(-90deg)}
+.goal-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.goal-pct{font-size:22px;font-weight:900;color:var(--text)}
+.goal-sub{font-size:10px;color:var(--sub)}
+.goal-info{flex:1}
+.goal-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.goal-desc{font-size:12px;color:var(--sub);margin-bottom:10px}
+.goal-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.goal-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--teal),var(--teal-md));transition:width .8s ease}
+
+/* dark toggle */
+.dark-toggle{cursor:pointer;font-size:18px;padding:4px}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* anim */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeUp .3s ease forwards}
+</style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-brand">
-    <div class="nav-icon">T</div>
-    TimeTracker
-  </div>
-  <div class="nav-tabs">
-    <div class="nav-tab active" onclick="switchTab('tracker')" id="tab-tracker">
-      ⏱ Tracker
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <svg viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="18" r="11" stroke="white" stroke-width="2.2"/>
+        <path d="M16 12v6l3.5 2.5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11 4h10" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
     </div>
-    <div class="nav-tab" onclick="switchTab('projects')" id="tab-projects">
-      📁 Projects
-    </div>
-    <div class="nav-tab" onclick="switchTab('reports')" id="tab-reports">
-      📊 Reports
-    </div>
-  </div>
-  <div class="nav-total">Total time logged: <span id="totalLogged">0s</span></div>
-</nav>
-
-<!-- TRACKER TAB -->
-<div class="main tab-panel active" id="panel-tracker">
-  <!-- Timer bar -->
-  <div class="card">
-    <div class="tracker-bar">
-      <input type="text" class="tracker-desc" id="taskDesc" placeholder="What are you working on?"/>
-      <div class="tracker-sep"></div>
-      <select class="tracker-proj" id="projSelect">
-        <option value="">— Select Project —</option>
+    <div class="login-title">QA Time Tracker</div>
+    <div class="login-sub">Track your work hours — Orion India QA Team</div>
+    <div class="login-field">
+      <label class="login-label">Your Name</label>
+      <select class="login-sel" id="loginName">
+        <option value="">— Select your name —</option>
+        <option>Ajay</option><option>Keshav</option><option>Gourav</option>
+        <option>Shubhi</option><option>Subhani</option><option>Mohit</option>
+        <option>Yadav</option><option>Shishupal</option>
       </select>
-      <div class="tracker-time" id="timerDisplay">00 : 00 : 00</div>
-      <button class="btn-start" id="startBtn" onclick="toggleTimer()">START</button>
     </div>
+    <div class="login-field">
+      <label class="login-label">Password</label>
+      <input type="password" class="login-inp" id="loginPass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="login-btn" onclick="doLogin()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="white" stroke-width="1.5"/><path d="M8 5v3.5l2.5 1.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Start Tracking
+    </button>
+    <div class="login-hint">Password: <strong>Orion@123</strong></div>
   </div>
+</div>
 
-  <!-- Today's entries -->
-  <div class="card">
-    <div class="entries-hd">
-      <span class="entries-title">Today's Entries</span>
-      <span class="entries-total" id="todayTotal">0h 0m</span>
+<!-- APP -->
+<div class="app-wrap" id="appWrap">
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <div class="tnav-brand">
+      <div class="tnav-icon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="11" r="7" stroke="white" stroke-width="1.8"/>
+          <path d="M10 7.5V11l2.5 1.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 2h6" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      QA Time Tracker
+      <span class="tnav-user" id="navUser"></span>
     </div>
-    <div id="entriesList">
-      <div class="empty-state">
-        <div class="empty-icon">⏰</div>
-        No entries yet today. Start the timer above!
+    <div class="tnav-pill paused" id="runningPill" style="display:none">
+      <div class="live-dot"></div>
+      <span id="runningLabel">Running</span>
+    </div>
+    <span class="dark-toggle" onclick="toggleDark()" title="Toggle dark mode">🌙</span>
+    <button class="tnav-btn" onclick="goHome()">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 6.5L6.5 1 12 6.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 5.5V12h3V9h2v3h3V5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Main App
+    </button>
+    <button class="tnav-btn" onclick="doLogout()">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M5 2H2.5A1 1 0 001.5 3v7a1 1 0 001 1H5M9 9.5l3-3-3-3M12 6.5H5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sign Out
+    </button>
+  </nav>
+
+  <!-- Body -->
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Timer card -->
+      <div class="sidebar-timer-card">
+        <div class="st-label">Timer</div>
+        <div class="st-clock" id="sidebarClock">00:00:00</div>
+        <input class="st-desc-input" id="stDesc" placeholder="What are you working on?"/>
+        <select class="st-proj-sel" id="stProj">
+          <option value="">— Select project —</option>
+        </select>
+        <button class="st-start-btn" id="stBtn" onclick="toggleTimer()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2l9 5-9 5V2z" fill="currentColor"/></svg>
+          Start Timer
+        </button>
+      </div>
+
+      <!-- Daily goal -->
+      <div class="sidebar-section">
+        <div class="ss-title">Daily Goal</div>
+        <div class="goal-wrap">
+          <div class="goal-ring">
+            <svg width="110" height="110" viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="48" fill="none" stroke="var(--border)" stroke-width="8"/>
+              <circle cx="55" cy="55" r="48" fill="none" stroke="var(--teal)" stroke-width="8"
+                stroke-dasharray="301.6" stroke-dashoffset="301.6" stroke-linecap="round"
+                id="goalCircle" style="transition:stroke-dashoffset .8s ease"/>
+            </svg>
+            <div class="goal-ring-label">
+              <div class="goal-pct" id="goalPct">0%</div>
+              <div class="goal-sub">of 8h</div>
+            </div>
+          </div>
+          <div class="goal-info">
+            <div class="goal-title">Today's progress</div>
+            <div class="goal-desc" id="goalDesc">0h 0m logged</div>
+            <div class="goal-bar"><div class="goal-fill" id="goalBar" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Projects -->
+      <div class="sidebar-section">
+        <div class="ss-title">Projects</div>
+        <div class="new-proj-form" id="newProjForm">
+          <input class="new-proj-inp" id="newProjName" placeholder="Project name…" onkeydown="if(event.key==='Enter')saveProject()"/>
+          <div class="color-dots" id="colorDots"></div>
+          <div class="form-row">
+            <button class="btn-xs btn-teal" onclick="saveProject()">Create</button>
+            <button class="btn-xs btn-ghost" onclick="closeNewProj()">Cancel</button>
+          </div>
+        </div>
+        <div id="projList"></div>
+        <button class="add-proj-btn" onclick="openNewProj()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          New Project
+        </button>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- PROJECTS TAB -->
-<div class="main tab-panel" id="panel-projects">
-  <div class="new-proj-form" id="newProjForm">
-    <div class="new-proj-row">
-      <input class="new-proj-input" id="newProjName" placeholder="Project name…" onkeydown="if(event.key==='Enter')saveProject()"/>
-      <div id="colorPicker" style="display:flex;gap:6px"></div>
-      <button class="btn-sm btn-primary" onclick="saveProject()">Create</button>
-      <button class="btn-sm btn-ghost" onclick="closeNewProj()">Cancel</button>
-    </div>
-  </div>
-  <div class="proj-grid" id="projGrid"></div>
-</div>
+    <!-- Main content -->
+    <div class="main-content">
 
-<!-- REPORTS TAB -->
-<div class="main tab-panel" id="panel-reports">
-  <div class="stats-grid" id="statsGrid">
-    <div class="stat-card">
-      <div class="stat-label">Total All Time</div>
-      <div class="stat-value" id="rTotalAll">0s</div>
-      <div class="stat-sub">across all projects</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Today</div>
-      <div class="stat-value" id="rToday">0s</div>
-      <div class="stat-sub" id="rTodayEntries">0 entries</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Projects</div>
-      <div class="stat-value" id="rProjects">0</div>
-      <div class="stat-sub" id="rProjSub">0 with entries</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Entries</div>
-      <div class="stat-value" id="rEntries">0</div>
-      <div class="stat-sub">logged</div>
-    </div>
-  </div>
+      <!-- Period tabs -->
+      <div class="period-tabs">
+        <button class="ptab active" onclick="setPeriod('day')" id="ptDay">Day</button>
+        <button class="ptab" onclick="setPeriod('week')" id="ptWeek">Week</button>
+        <button class="ptab" onclick="setPeriod('month')" id="ptMonth">Month</button>
+        <button class="ptab" onclick="setPeriod('all')" id="ptAll">All Time</button>
+      </div>
 
-  <div class="card">
-    <div class="chart-section-title">Time by Project</div>
-    <div id="projChart">
-      <div class="empty-state"><div class="empty-icon">📊</div>Start tracking time to see reports here.</div>
-    </div>
-  </div>
+      <!-- Stats -->
+      <div class="stats-row" id="statsRow"></div>
 
-  <div class="card">
-    <div class="chart-section-title">History</div>
-    <div id="historyList">
-      <div class="empty-state">No history yet.</div>
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="cc-hd">
+          <div>
+            <div class="cc-title" id="chartTitle">Hours Tracked — Today</div>
+            <div class="cc-sub" id="chartSub"></div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Weekly heatmap -->
+      <div class="chart-card" id="heatmapCard">
+        <div class="cc-hd"><div class="cc-title">This Week — Daily Overview</div></div>
+        <div class="heatmap-grid" id="heatmapGrid"></div>
+      </div>
+
+      <!-- Project distribution -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px" id="dualRow">
+        <div class="chart-card">
+          <div class="cc-hd"><div class="cc-title">By Project</div></div>
+          <div class="chart-wrap" style="height:180px"><canvas id="doughnutChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="cc-hd"><div class="cc-title">Recent Activity</div></div>
+          <div id="activityFeed" style="max-height:180px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+      <!-- Entries -->
+      <div class="chart-card">
+        <div class="cc-hd">
+          <div>
+            <div class="cc-title" id="entriesTitle">Today's Entries</div>
+            <div class="cc-sub" id="entriesTotalSub">0h 0m</div>
+          </div>
+        </div>
+        <div id="entriesList"></div>
+      </div>
+
     </div>
   </div>
 </div>
 
 <script>
-// ─────────────────────────────────────────
-//  Firebase setup — uses SAME config as main app
-// ─────────────────────────────────────────
+// ── Firebase ──
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyCdnt4Yv2xDIUaIccCkNQEtW2cZl2Xv7UE",
   authDomain:        "orion-qa-generator.firebaseapp.com",
@@ -406,326 +385,337 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "700142321129",
   appId:             "1:700142321129:web:835c19f5964e270f561f78"
 };
-
 firebase.initializeApp(FIREBASE_CONFIG);
-const db = firebase.database();
+const fireDb = firebase.database();
 
-// ─────────────────────────────────────────
-//  State
-// ─────────────────────────────────────────
-const params   = new URLSearchParams(location.search);
-const USERNAME = params.get('user') || 'Unknown';
-const userRef  = db.ref(`qa-timetracker/${USERNAME}`);
+const PASS = 'Orion@123';
+const COLORS = ['#1D9E75','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#EC4899','#0E7490','#6366F1'];
+let user='',userRef=null;
+let projects=[],entries={};
+let running=false,startTs=null,interval=null;
+let activeDesc='',activeProjId='';
+let selColor=COLORS[0];
+let period='day';
+let isDark=false;
+let mainChart=null,doughChart=null;
 
-const PROJECT_COLORS = ['#1D9E75','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#EC4899','#0E7490','#64748B'];
-let projects   = [];   // { id, name, color }
-let entries    = {};   // { YYYY-MM-DD: [ {id, desc, proj, start, end, dur} ] }
-let selectedColor = PROJECT_COLORS[0];
+const pad=n=>String(n).padStart(2,'0');
+const todayKey=()=>new Date().toISOString().slice(0,10);
+const fmtSec=s=>{if(s<60)return s+'s';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;if(h>0)return`${h}h ${pad(m)}m`;return`${m}m ${pad(sc)}s`};
+const fmtHM=s=>`${Math.floor(s/3600)}h ${pad(Math.floor((s%3600)/60))}m`;
+const fmtClock=s=>`${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`;
+const fmtTime=iso=>new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const projColor=id=>{const p=projects.find(p=>String(p.id)===String(id));return p?p.color:'#94A3B8'};
+const projName=id=>{if(!id)return'No project';const p=projects.find(p=>String(p.id)===String(id));return p?p.name:'Unknown'};
 
-let timerRunning = false;
-let timerStart   = null;
-let timerInterval = null;
-let activeDesc   = '';
-let activeProj   = '';
-
-const todayKey = () => new Date().toISOString().slice(0,10);
-const pad = n  => String(n).padStart(2,'0');
-
-function fmtDur(sec) {
-  if (sec < 60) return sec + 's';
-  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-  if (h > 0) return `${h}h ${pad(m)}m`;
-  return `${m}m ${pad(s)}s`;
+// ── Login ──
+function doLogin(){
+  const name=document.getElementById('loginName').value;
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginErr');
+  if(!name){err.textContent='Select your name.';return}
+  if(pass!==PASS){err.textContent='Incorrect password.';document.getElementById('loginPass').value='';return}
+  err.textContent='';
+  user=name;
+  sessionStorage.setItem('tt-session',name);
+  startApp();
 }
-function fmtHM(sec) {
-  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
-  return `${h}h ${pad(m)}m`;
+function doLogout(){
+  stopTimer();sessionStorage.removeItem('tt-session');
+  document.getElementById('appWrap').classList.remove('show');
+  document.getElementById('loginWrap').style.display='flex';
 }
-function fmtClock(sec) {
-  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-  return `${pad(h)} : ${pad(m)} : ${pad(s)}`;
-}
-function fmtTime(iso) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-}
+function goHome(){window.close();/* or open main app */location.href='index.html'}
 
-// ─────────────────────────────────────────
-//  Firebase I/O
-// ─────────────────────────────────────────
-function load() {
-  userRef.once('value', snap => {
-    const data = snap.val() || {};
-    projects = data.projects ? Object.values(data.projects) : [];
-    entries  = data.entries  || {};
+function startApp(){
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('appWrap').classList.add('show');
+  document.getElementById('navUser').textContent=`— ${user}`;
+  userRef=fireDb.ref(`qa-timetracker/${user}`);
+  userRef.once('value',snap=>{
+    const d=snap.val()||{};
+    projects=d.projects?Object.values(d.projects):[];
+    entries=d.entries||{};
     renderAll();
   });
 }
 
-function saveProjToFB() {
-  const obj = {};
-  projects.forEach(p => { obj[p.id] = p; });
-  userRef.child('projects').set(obj);
+// ── Timer ──
+function toggleTimer(){running?stopTimer():startTimer()}
+
+function startTimer(){
+  const desc=document.getElementById('stDesc').value.trim()||'Untitled';
+  const proj=document.getElementById('stProj').value;
+  activeDesc=desc;activeProjId=proj;startTs=Date.now();running=true;
+  document.getElementById('stDesc').value='';
+  document.getElementById('stBtn').innerHTML=`<svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1.5" fill="white"/></svg> Stop Timer`;
+  document.getElementById('stBtn').classList.add('stop');
+  const pill=document.getElementById('runningPill');
+  pill.style.display='flex';pill.classList.remove('paused');
+  interval=setInterval(()=>{
+    const s=Math.floor((Date.now()-startTs)/1000);
+    document.getElementById('sidebarClock').textContent=fmtClock(s);
+    document.getElementById('runningLabel').textContent=activeDesc.slice(0,20)+(activeDesc.length>20?'…':'')+' · '+fmtClock(s);
+    updateGoal();
+  },1000);
 }
 
-function saveDayEntries(day) {
-  userRef.child(`entries/${day}`).set(entries[day] || null);
+function stopTimer(){
+  if(!running)return;
+  clearInterval(interval);
+  const dur=Math.floor((Date.now()-startTs)/1000);
+  running=false;
+  document.getElementById('sidebarClock').textContent='00:00:00';
+  document.getElementById('stBtn').innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2l9 5-9 5V2z" fill="currentColor"/></svg> Start Timer`;
+  document.getElementById('stBtn').classList.remove('stop');
+  document.getElementById('runningPill').classList.add('paused');
+  setTimeout(()=>{document.getElementById('runningPill').style.display='none'},800);
+  if(dur<2)return;
+  const day=todayKey();
+  if(!entries[day])entries[day]=[];
+  entries[day].unshift({id:Date.now(),desc:activeDesc,projId:activeProjId,start:new Date(startTs).toISOString(),end:new Date().toISOString(),dur});
+  saveDayEntries(day);renderAll();
 }
 
-// ─────────────────────────────────────────
-//  Timer
-// ─────────────────────────────────────────
-function toggleTimer() {
-  if (timerRunning) stopTimer();
-  else startTimer();
+// ── Storage ──
+function saveProjToFB(){const o={};projects.forEach(p=>{o[p.id]=p});userRef.child('projects').set(o)}
+function saveDayEntries(day){userRef.child(`entries/${day}`).set(entries[day]||null)}
+function delEntry(day,id){entries[day]=(entries[day]||[]).filter(e=>e.id!==id);if(!entries[day]?.length)delete entries[day];saveDayEntries(day);renderAll()}
+
+// ── Projects ──
+function openNewProj(){document.getElementById('newProjForm').classList.add('open');renderColorDots();document.getElementById('newProjName').focus()}
+function closeNewProj(){document.getElementById('newProjForm').classList.remove('open');document.getElementById('newProjName').value=''}
+function renderColorDots(){document.getElementById('colorDots').innerHTML=COLORS.map(c=>`<div class="cdot ${c===selColor?'sel':''}" style="background:${c}" onclick="pickCol('${c}')"></div>`).join('')}
+function pickCol(c){selColor=c;renderColorDots()}
+function saveProject(){
+  const name=document.getElementById('newProjName').value.trim();if(!name)return;
+  projects.push({id:Date.now(),name,color:selColor});
+  saveProjToFB();closeNewProj();renderAll();
 }
+function delProject(id){projects=projects.filter(p=>p.id!==id);saveProjToFB();renderAll()}
 
-function startTimer() {
-  const desc = document.getElementById('taskDesc').value.trim();
-  activeDesc = desc || 'Untitled';
-  activeProj = document.getElementById('projSelect').value;
-  timerStart = Date.now();
-  timerRunning = true;
-  document.getElementById('startBtn').textContent = 'STOP';
-  document.getElementById('startBtn').classList.add('running');
-  timerInterval = setInterval(() => {
-    const sec = Math.floor((Date.now() - timerStart) / 1000);
-    document.getElementById('timerDisplay').textContent = fmtClock(sec);
-  }, 1000);
-}
-
-function stopTimer() {
-  clearInterval(timerInterval);
-  const dur = Math.floor((Date.now() - timerStart) / 1000);
-  timerRunning = false;
-  document.getElementById('startBtn').textContent = 'START';
-  document.getElementById('startBtn').classList.remove('running');
-  document.getElementById('timerDisplay').textContent = '00 : 00 : 00';
-
-  if (dur < 2) return; // ignore accidental clicks
-
-  const day = todayKey();
-  if (!entries[day]) entries[day] = [];
-  const entry = {
-    id:    Date.now(),
-    desc:  activeDesc,
-    proj:  activeProj,
-    start: new Date(timerStart).toISOString(),
-    end:   new Date().toISOString(),
-    dur,
-  };
-  entries[day].unshift(entry);
-  saveDayEntries(day);
-  renderAll();
-  document.getElementById('taskDesc').value = '';
-}
-
-// ─────────────────────────────────────────
-//  Projects
-// ─────────────────────────────────────────
-function openNewProj() {
-  document.getElementById('newProjForm').classList.add('open');
-  document.getElementById('newProjName').focus();
-  renderColorPicker();
-}
-function closeNewProj() {
-  document.getElementById('newProjForm').classList.remove('open');
-  document.getElementById('newProjName').value = '';
-}
-
-function renderColorPicker() {
-  document.getElementById('colorPicker').innerHTML = PROJECT_COLORS.map(c => `
-    <div class="color-swatch ${c===selectedColor?'sel':''}"
-         style="background:${c}"
-         onclick="pickColor('${c}')"></div>`).join('');
-}
-function pickColor(c) { selectedColor = c; renderColorPicker(); }
-
-function saveProject() {
-  const name = document.getElementById('newProjName').value.trim();
-  if (!name) return;
-  const proj = { id: Date.now(), name, color: selectedColor };
-  projects.push(proj);
-  saveProjToFB();
-  closeNewProj();
+// ── Period ──
+function setPeriod(p){
+  period=p;
+  ['day','week','month','all'].forEach(x=>{
+    document.getElementById('pt'+x.charAt(0).toUpperCase()+x.slice(1))?.classList.toggle('active',x===p)
+  });
   renderAll();
 }
 
-function deleteProject(id) {
-  projects = projects.filter(p => p.id !== id);
-  saveProjToFB();
-  renderAll();
-}
-
-// ─────────────────────────────────────────
-//  Delete entry
-// ─────────────────────────────────────────
-function deleteEntry(day, id) {
-  entries[day] = (entries[day] || []).filter(e => e.id !== id);
-  if (!entries[day].length) delete entries[day];
-  saveDayEntries(day);
-  renderAll();
-}
-
-// ─────────────────────────────────────────
-//  Render
-// ─────────────────────────────────────────
-function renderAll() {
-  renderProjSelect();
-  renderEntriesTab();
-  renderProjectsTab();
-  renderReports();
-  updateTotalLogged();
-}
-
-function projColor(projId) {
-  const p = projects.find(p => String(p.id) === String(projId));
-  return p ? p.color : '#9CA3AF';
-}
-function projName(projId) {
-  if (!projId) return 'No project';
-  const p = projects.find(p => String(p.id) === String(projId));
-  return p ? p.name : 'Unknown';
-}
-
-function renderProjSelect() {
-  const sel = document.getElementById('projSelect');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">— Select Project —</option>' +
-    projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-  if (cur) sel.value = cur;
-}
-
-function renderEntriesTab() {
-  const day  = todayKey();
-  const list = entries[day] || [];
-  const el   = document.getElementById('entriesList');
-  const tot  = document.getElementById('todayTotal');
-
-  const totalSec = list.reduce((s,e) => s + e.dur, 0);
-  tot.textContent = fmtHM(totalSec);
-
-  if (!list.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⏰</div>No entries yet today. Start the timer above!</div>`;
-    return;
+function getFilteredEntries(){
+  const now=new Date(),all=Object.values(entries).flat();
+  if(period==='day'){const d=todayKey();return entries[d]||[]}
+  if(period==='week'){
+    const start=new Date(now);start.setDate(now.getDate()-now.getDay());
+    return all.filter(e=>new Date(e.start)>=start);
   }
-
-  el.innerHTML = list.map(e => `
-    <div class="entry-row">
-      <div class="entry-dot" style="background:${projColor(e.proj)}"></div>
-      <div class="entry-desc">${esc(e.desc)}</div>
-      <div class="entry-proj">${esc(projName(e.proj))}</div>
-      <div class="entry-time-range">${fmtTime(e.start)} – ${fmtTime(e.end)}</div>
-      <div class="entry-dur">${fmtDur(e.dur)}</div>
-      <button class="entry-del" onclick="deleteEntry('${day}',${e.id})" title="Delete">✕</button>
-    </div>`).join('');
+  if(period==='month'){
+    return all.filter(e=>{const d=new Date(e.start);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()});
+  }
+  return all;
 }
 
-function renderProjectsTab() {
-  const grid = document.getElementById('projGrid');
-  grid.innerHTML = projects.map(p => {
-    const allEntries = Object.values(entries).flat().filter(e => String(e.proj)===String(p.id));
-    const total = allEntries.reduce((s,e) => s+e.dur, 0);
-    return `<div class="proj-card">
-      <div class="proj-color-bar" style="background:${p.color}"></div>
-      <button class="proj-del" onclick="deleteProject(${p.id})">✕</button>
-      <div class="proj-name">${esc(p.name)}</div>
-      <div class="proj-entries">${allEntries.length} entries</div>
-      <div class="proj-time-total">${fmtHM(total)}</div>
+// ── Render all ──
+function renderAll(){
+  renderProjSel();renderProjList();renderStats();renderMainChart();
+  renderHeatmap();renderDoughnut();renderActivity();renderEntries();updateGoal();
+}
+
+function renderProjSel(){
+  const s=document.getElementById('stProj');const v=s.value;
+  s.innerHTML='<option value="">— Select project —</option>'+projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if(v)s.value=v;
+}
+
+function renderProjList(){
+  const all=Object.values(entries).flat();
+  document.getElementById('projList').innerHTML=projects.map(p=>{
+    const sec=all.filter(e=>String(e.projId)===String(p.id)).reduce((s,e)=>s+e.dur,0);
+    return`<div class="proj-chip">
+      <div class="proj-dot" style="background:${p.color}"></div>
+      <span class="proj-chip-name">${esc(p.name)}</span>
+      <span class="proj-chip-dur">${fmtHM(sec)}</span>
+      <button class="proj-chip-del" onclick="delProject(${p.id})">✕</button>
     </div>`;
-  }).join('') +
-  `<div class="proj-new" onclick="openNewProj()">+ Create New Project</div>`;
+  }).join('');
 }
 
-function renderReports() {
-  const all = Object.values(entries).flat();
-  const today = (entries[todayKey()] || []);
-  const totalAll = all.reduce((s,e)=>s+e.dur,0);
-  const totalToday = today.reduce((s,e)=>s+e.dur,0);
-  const projsWithEntries = new Set(all.map(e=>e.proj).filter(Boolean)).size;
+function renderStats(){
+  const filtered=getFilteredEntries();
+  const total=filtered.reduce((s,e)=>s+e.dur,0);
+  const today=entries[todayKey()]||[];
+  const todaySec=today.reduce((s,e)=>s+e.dur,0);
+  const allDays=Object.keys(entries);
+  const avg=allDays.length?Math.round(Object.values(entries).map(d=>d.reduce((s,e)=>s+e.dur,0)).reduce((a,b)=>a+b,0)/allDays.length):0;
+  const projsUsed=new Set(filtered.map(e=>e.projId).filter(Boolean)).size;
+  const labels={'day':'Today','week':'This week','month':'This month','all':'All time'};
+  document.getElementById('statsRow').innerHTML=[
+    {l:'Total Time',v:fmtSec(total),s:labels[period],a:'--teal',trend:''},
+    {l:'Entries',v:filtered.length,s:'logged',a:'--blue',trend:''},
+    {l:'Daily Average',v:fmtHM(avg),s:'per day',a:'--purple',trend:''},
+    {l:'Projects Used',v:projsUsed,s:'active',a:'--amber',trend:''},
+  ].map(c=>`<div class="stat-card" style="--accent:var(${c.a})">
+    <div class="sc-label">${c.l}</div>
+    <div class="sc-val">${c.v}</div>
+    <div class="sc-sub">${c.s}</div>
+  </div>`).join('');
+}
 
-  document.getElementById('rTotalAll').textContent = fmtDur(totalAll);
-  document.getElementById('rToday').textContent    = fmtDur(totalToday);
-  document.getElementById('rTodayEntries').textContent = today.length + ' entries';
-  document.getElementById('rProjects').textContent = projects.length;
-  document.getElementById('rProjSub').textContent  = projsWithEntries + ' with entries';
-  document.getElementById('rEntries').textContent  = all.length;
+function renderMainChart(){
+  const ctx=document.getElementById('mainChart').getContext('2d');
+  let labels=[],data=[],label='';
 
-  // By-project chart
-  const chart = document.getElementById('projChart');
-  if (!all.length) {
-    chart.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div>Start tracking time to see reports here.</div>`;
-  } else {
-    const byProj = {};
-    all.forEach(e => {
-      const k = e.proj || '__none';
-      byProj[k] = (byProj[k]||0) + e.dur;
+  if(period==='day'){
+    // Hourly breakdown today
+    label='Today — Hourly';
+    const today=entries[todayKey()]||[];
+    labels=Array.from({length:24},(_,i)=>pad(i)+':00');
+    data=labels.map((_,h)=>today.filter(e=>new Date(e.start).getHours()===h).reduce((s,e)=>s+e.dur,0)/3600);
+  } else if(period==='week'){
+    label='This Week — Daily';
+    const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const now=new Date(),wd=now.getDay();
+    labels=days.map((_,i)=>{const d=new Date(now);d.setDate(now.getDate()-wd+i);return days[i]});
+    const now2=new Date();const wd2=now2.getDay();
+    data=Array.from({length:7},(_,i)=>{
+      const d=new Date(now2);d.setDate(now2.getDate()-wd2+i);
+      const key=d.toISOString().slice(0,10);
+      return((entries[key]||[]).reduce((s,e)=>s+e.dur,0))/3600;
     });
-    const maxSec = Math.max(...Object.values(byProj));
-    chart.innerHTML = Object.entries(byProj).sort((a,b)=>b[1]-a[1]).map(([k,sec])=>{
-      const col  = k==='__none' ? '#9CA3AF' : projColor(k);
-      const name = k==='__none' ? 'No project' : projName(k);
-      const pct  = maxSec ? Math.round(sec/maxSec*100) : 0;
-      return `<div class="proj-bar-row">
-        <div class="proj-bar-name" style="color:${col}">${esc(name)}</div>
-        <div class="proj-bar-track"><div class="proj-bar-fill" style="width:${pct}%;background:${col}"></div></div>
-        <div class="proj-bar-time">${fmtHM(sec)}</div>
-      </div>`;
-    }).join('');
-  }
-
-  // History
-  const hist = document.getElementById('historyList');
-  const days  = Object.keys(entries).sort().reverse();
-  if (!days.length) {
-    hist.innerHTML = `<div class="empty-state">No history yet.</div>`;
+  } else if(period==='month'){
+    label='This Month — Daily';
+    const now=new Date(),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+    labels=Array.from({length:dim},(_,i)=>String(i+1));
+    data=labels.map((_,i)=>{
+      const key=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(i+1)}`;
+      return((entries[key]||[]).reduce((s,e)=>s+e.dur,0))/3600;
+    });
   } else {
-    hist.innerHTML = days.map(day => {
-      const list  = entries[day] || [];
-      const total = list.reduce((s,e)=>s+e.dur,0);
-      const label = day === todayKey() ? 'Today' : new Date(day+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-      return `<div class="history-day">
-        <div class="history-day-hd"><span>${label}</span><span>${fmtHM(total)}</span></div>
-        ${list.map(e=>`<div class="entry-row">
-          <div class="entry-dot" style="background:${projColor(e.proj)}"></div>
-          <div class="entry-desc">${esc(e.desc)}</div>
-          <div class="entry-proj">${esc(projName(e.proj))}</div>
-          <div class="entry-time-range">${fmtTime(e.start)} – ${fmtTime(e.end)}</div>
-          <div class="entry-dur">${fmtDur(e.dur)}</div>
-          <button class="entry-del" onclick="deleteEntry('${day}',${e.id})" title="Delete">✕</button>
-        </div>`).join('')}
-      </div>`;
-    }).join('');
+    label='All Time — Weekly';
+    const allDays=Object.keys(entries).sort();
+    labels=allDays;
+    data=allDays.map(k=>(entries[k]||[]).reduce((s,e)=>s+e.dur,0)/3600);
   }
+
+  document.getElementById('chartTitle').textContent='Hours Tracked — '+label;
+  if(mainChart)mainChart.destroy();
+  mainChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{label:'Hours',data,backgroundColor:'rgba(29,158,117,.7)',borderColor:'#1D9E75',borderRadius:6,hoverBackgroundColor:'rgba(29,158,117,.9)'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw.toFixed(2)}h`}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(100,116,139,.15)'},ticks:{callback:v=>v+'h'}},x:{grid:{display:false}}}}
+  });
 }
 
-function updateTotalLogged() {
-  const all = Object.values(entries).flat();
-  const sec = all.reduce((s,e)=>s+e.dur,0);
-  document.getElementById('totalLogged').textContent = fmtDur(sec);
+function renderHeatmap(){
+  const now=new Date(),wd=now.getDay();
+  const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const cells=Array.from({length:7},(_,i)=>{
+    const d=new Date(now);d.setDate(now.getDate()-wd+i);
+    const key=d.toISOString().slice(0,10);
+    const sec=(entries[key]||[]).reduce((s,e)=>s+e.dur,0);
+    const maxH=8,pct=Math.min(sec/3600/maxH,1);
+    const alpha=pct===0?0.1:0.2+pct*0.8;
+    const isToday=key===todayKey();
+    return`<div class="hm-cell" style="background:rgba(29,158,117,${alpha});border:${isToday?'2px solid #1D9E75':'1.5px solid transparent'}">
+      <div class="hm-day" style="color:${isToday?'#1D9E75':'var(--sub)'};font-weight:${isToday?700:500}">${DAYS[i]}</div>
+      <div class="hm-val">${sec>0?fmtHM(sec):'—'}</div>
+    </div>`;
+  });
+  document.getElementById('heatmapGrid').innerHTML=cells.join('');
 }
 
-// ─────────────────────────────────────────
-//  Tab switching
-// ─────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('panel-'+name).classList.add('active');
-  document.getElementById('tab-'+name).classList.add('active');
+function renderDoughnut(){
+  const all=getFilteredEntries();
+  const byProj={};
+  all.forEach(e=>{const k=e.projId||'__none';byProj[k]=(byProj[k]||0)+e.dur});
+  const ctx=document.getElementById('doughnutChart').getContext('2d');
+  if(doughChart)doughChart.destroy();
+  if(!Object.keys(byProj).length){ctx.clearRect(0,0,300,300);return}
+  doughChart=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:Object.keys(byProj).map(k=>k==='__none'?'No project':projName(k)),
+      datasets:[{data:Object.values(byProj).map(s=>s/3600),backgroundColor:Object.keys(byProj).map(k=>k==='__none'?'#94A3B8':projColor(k)),borderWidth:2,borderColor:isDark?'#1E293B':'#fff'}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:10,boxWidth:10}},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(2)}h`}}}}
+  });
 }
 
-const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function renderActivity(){
+  const all=Object.values(entries).flat().sort((a,b)=>b.id-a.id).slice(0,8);
+  const feed=document.getElementById('activityFeed');
+  if(!all.length){feed.innerHTML=`<div class="empty-state" style="padding:16px"><div class="empty-icon" style="font-size:24px">📋</div>No activity yet</div>`;return}
+  feed.innerHTML=all.map(e=>{
+    const col=projColor(e.projId);
+    return`<div class="activity-item">
+      <div class="ai-icon" style="background:${col}22;color:${col}">⚡</div>
+      <div class="ai-main">
+        <div class="ai-title">${esc(e.desc)}</div>
+        <div class="ai-time">${esc(projName(e.projId))} · ${fmtTime(e.start)}</div>
+      </div>
+      <div class="ai-dur">${fmtSec(e.dur)}</div>
+    </div>`;
+  }).join('');
+}
 
-// ─────────────────────────────────────────
-//  Init
-// ─────────────────────────────────────────
-document.title = `TimeTracker — ${USERNAME}`;
-load();
+function renderEntries(){
+  const filtered=getFilteredEntries();
+  const total=filtered.reduce((s,e)=>s+e.dur,0);
+  const pLabels={'day':'Today','week':'This Week','month':'This Month','all':'All Time'};
+  document.getElementById('entriesTitle').textContent=pLabels[period]+' — Entries';
+  document.getElementById('entriesTotalSub').textContent=fmtHM(total)+' total';
+  const el=document.getElementById('entriesList');
+  if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⏰</div>No entries for this period</div>`;return}
 
-// Set page title with username
-const brand = document.querySelector('.nav-brand');
-if (brand) brand.innerHTML += `<span style="font-size:12px;color:#4B5563;font-weight:400;margin-left:6px">${USERNAME}</span>`;
+  // Group by day
+  const byDay={};
+  filtered.forEach(e=>{const d=e.start.slice(0,10);if(!byDay[d])byDay[d]=[];byDay[d].push(e)});
+  el.innerHTML=Object.keys(byDay).sort().reverse().map(day=>{
+    const list=byDay[day];const dayTotal=list.reduce((s,e)=>s+e.dur,0);
+    const lbl=day===todayKey()?'Today':new Date(day+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+    return`<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;padding:6px 10px;font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);margin-bottom:4px">
+        <span>${lbl}</span><span>${fmtHM(dayTotal)}</span>
+      </div>
+      ${list.map(e=>`<div class="et-row">
+        <div class="et-dot" style="background:${projColor(e.projId)}"></div>
+        <div class="et-main">
+          <div class="et-desc">${esc(e.desc)}</div>
+          <div class="et-meta">
+            <span class="et-proj-tag" style="background:${projColor(e.projId)}22;color:${projColor(e.projId)}">${esc(projName(e.projId))}</span>
+            <span>${fmtTime(e.start)} – ${fmtTime(e.end)}</span>
+          </div>
+        </div>
+        <div class="et-time">${fmtSec(e.dur)}</div>
+        <button class="et-del" onclick="delEntry('${day}',${e.id})">✕</button>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function updateGoal(){
+  const GOAL=8*3600;
+  const todaySec=(entries[todayKey()]||[]).reduce((s,e)=>s+e.dur,0)+(running?Math.floor((Date.now()-startTs)/1000):0);
+  const pct=Math.min(todaySec/GOAL*100,100);
+  const offset=301.6-(301.6*pct/100);
+  document.getElementById('goalCircle').style.strokeDashoffset=offset;
+  document.getElementById('goalPct').textContent=Math.round(pct)+'%';
+  document.getElementById('goalDesc').textContent=fmtHM(todaySec)+' logged';
+  document.getElementById('goalBar').style.width=pct+'%';
+}
+
+function toggleDark(){
+  isDark=!isDark;
+  document.documentElement.setAttribute('data-dark',isDark?'1':'');
+  document.querySelector('.dark-toggle').textContent=isDark?'☀️':'🌙';
+  if(mainChart||doughChart){renderMainChart();renderDoughnut()}
+}
+
+// ── Init ──
+const sess=sessionStorage.getItem('tt-session');
+if(sess){user=sess;startApp()}
 </script>
 </body>
 </html>
